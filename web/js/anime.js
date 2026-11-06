@@ -3,6 +3,7 @@ import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, f
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
 import { finishOdds } from './odds.js';
+import { finishes } from './fit.js';
 
 header();
 const id = +qs().get('id');
@@ -177,17 +178,18 @@ function renderListControls() {
   const el = $('#list-ctl');
   if (!user) { el.innerHTML = '<a class="btn ghost" href="pass.html">Connect AniList to track</a>'; return; }
   if (!user.canWrite) { el.innerHTML = entry ? `<span class="tag s-${entry.status}">${STATUS[entry.status]}, ep ${entry.progress}</span>` : ''; return; }
-  const total = media.episodes || (media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : 0);
+  // total = episodes out so far; only a known final count can complete the show
+  const total = media.episodes || (media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : 0), final = media.episodes || 0;
   el.innerHTML = `
     <select id="status" aria-label="List status">
       <option value="">Add to list…</option>
       ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${entry?.status === k ? ' selected' : ''}>${v}</option>`).join('')}
     </select>
     ${entry ? `<span class="stepper">Ep ${entry.progress}${total ? ` / ${total}` : ''}${!total || entry.progress < total ? ' <button id="plus" aria-label="Watched one more episode">+1</button>' : ''}</span>` : ''}`;
-  $('#status').onchange = e => e.target.value && save({ status: e.target.value, ...(e.target.value === 'COMPLETED' && total ? { progress: total } : {}) });
+  $('#status').onchange = e => e.target.value && save({ status: e.target.value, ...(e.target.value === 'COMPLETED' && final ? { progress: final } : {}) });
   $('#plus') && ($('#plus').onclick = () => {
     const progress = entry.progress + 1;
-    save({ progress, ...(total && progress >= total ? { status: 'COMPLETED' } : entry.status === 'PLANNING' ? { status: 'CURRENT' } : {}) });
+    save({ progress, ...(finishes(progress, media) ? { status: 'COMPLETED' } : entry.status === 'PLANNING' ? { status: 'CURRENT' } : {}) });
   });
 }
 

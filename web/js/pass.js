@@ -146,28 +146,29 @@ function renderCurrent(user, list) {
   const el = $('#current');
   if (!el) return;
   el.innerHTML = list.map(({ progress, media: m }) => {
-    const total = m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : 0);
+    // total = episodes out so far (for the bar); only a known final count can complete the show
+    const total = m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : 0), final = m.episodes || 0;
     return `
       <div class="journey" style="--c:${tint(m, 'var(--platform)')}">
         <a href="line.html?id=${m.id}"><img src="${cover(m, 'medium')}" alt=""></a>
         <div><a href="anime.html?id=${m.id}" style="text-decoration:none"><b>${esc(title(m))}</b></a>
           <div class="bar"><i style="width:${total ? Math.min(100, (progress / total) * 100) : 0}%"></i></div>
           <small>Episode <span data-progress>${progress}</span>${total ? ` of ${total}` : ''}</small></div>
-        ${user.canWrite && (!total || progress < total) ? `<button class="tag add" data-plus="${m.id}" data-total="${total}">+1</button>` : ''}
+        ${user.canWrite && (!total || progress < total) ? `<button class="tag add" data-plus="${m.id}" data-total="${total}" data-final="${final}">+1</button>` : ''}
       </div>`;
   }).join('');
   el.addEventListener('click', async e => {
     const b = e.target.closest('[data-plus]');
     if (!b) return;
     const span = b.closest('.journey').querySelector('[data-progress]');
-    const progress = +span.textContent + 1, total = +b.dataset.total;
+    const progress = +span.textContent + 1, total = +b.dataset.total, done = +b.dataset.final > 0 && progress >= +b.dataset.final;
     try {
-      await saveEntries([{ mediaId: +b.dataset.plus, progress, ...(total && progress >= total ? { status: 'COMPLETED' } : {}) }]);
+      await saveEntries([{ mediaId: +b.dataset.plus, progress, ...(done ? { status: 'COMPLETED' } : {}) }]);
       span.textContent = progress;
       b.closest('.journey').querySelector('.bar i').style.width = `${total ? Math.min(100, (progress / total) * 100) : 0}%`;
-      if (total && progress >= total) b.remove();
-      chime(total && progress >= total ? 'done' : 'tick');
-      toast(total && progress >= total ? 'Completed. End of the line!' : `Episode ${progress} logged`);
+      if (total && progress >= total) b.remove(); // caught up with what's out
+      chime(done ? 'done' : 'tick');
+      toast(done ? 'Completed. End of the line!' : `Episode ${progress} logged`);
     } catch (err) { toast(err.message); }
   });
 }

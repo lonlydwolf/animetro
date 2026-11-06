@@ -1,6 +1,6 @@
 import { gql, me, title, saveEntries } from './api.js';
 import { header, $, esc, countdown, minutes, toast, fail, cover, tint } from './ui.js';
-import { remaining, fit } from './fit.js';
+import { remaining, fit, finishes } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 
 header();
@@ -104,7 +104,7 @@ page.addEventListener('click', async ev => {
   if (card && (plus || done)) {
     const e = riding.find(x => x.media.id === +card.dataset.id), m = e.media;
     const progress = done ? e.progress : e.progress + 1;
-    const finished = done || (!m.nextAiringEpisode && m.episodes && progress >= m.episodes);
+    const finished = done || finishes(progress, m);
     (plus || done).disabled = true;
     try {
       await saveEntries([{ mediaId: m.id, progress, ...(finished ? { status: 'COMPLETED' } : {}) }]);

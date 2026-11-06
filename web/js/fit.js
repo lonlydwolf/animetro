@@ -6,6 +6,10 @@ const released = m => (m.status === 'NOT_YET_RELEASED' ? 0
   : m.episodes ?? (m.format === 'MOVIE' ? 1 : 0));
 export const epMinutes = m => m.duration || (m.format === 'MOVIE' ? 100 : 24);
 
+// Logging this episode completes the show only when AniList knows the final count and you've reached it.
+// (Episodes aired so far is not the end: catching up with an airing show must not mark it Completed.)
+export const finishes = (progress, m) => !!m?.episodes && progress >= m.episodes;
+
 // What's left of a show you're watching: episodes out but unwatched, and whether watching them all finishes it.
 export function remaining(e) {
   const m = e.media, out = released(m), left = Math.max(0, out - (e.progress || 0));

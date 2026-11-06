@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fit, remaining } from '../web/js/fit.js';
+import { fit, remaining, finishes } from '../web/js/fit.js';
 
 const show = (id, extra) => ({ id, format: 'TV', status: 'FINISHED', episodes: 12, duration: 24, averageScore: 70, ...extra });
 const airing = show(2, { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6 } }); // 5 episodes out
@@ -36,4 +36,11 @@ test('at most two new starts, and an airing show is never "finished"', () => {
 test('nothing fits a too-short budget; a movie fits whole or not at all', () => {
   assert.equal(fit(20, riding, planning).picks.length, 0);
   assert.deepEqual(fit(110, [], [{ progress: 0, media: show(5, { format: 'MOVIE', episodes: 1, duration: 110 }) }]).picks.map(x => x.eps), [1]);
+});
+
+test('catching up with an airing show does not complete it; reaching the known final episode does', () => {
+  assert.equal(finishes(5, { episodes: null, nextAiringEpisode: { episode: 6 } }), false, 'final count unknown');
+  assert.equal(finishes(5, { episodes: 12, nextAiringEpisode: { episode: 6 } }), false);
+  assert.equal(finishes(12, { episodes: 12 }), true);
+  assert.equal(finishes(1, { episodes: 1, format: 'MOVIE' }), true);
 });
