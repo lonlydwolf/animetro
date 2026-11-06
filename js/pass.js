@@ -1,4 +1,4 @@
-import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin } from './api.js';
+import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp } from './api.js';
 import { header, $, esc, toast, fail } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
@@ -190,7 +190,8 @@ async function pick(user, total) {
 }
 
 function connect() {
-  const redirect = location.origin + location.pathname;
+  // the Mac app catches animetro://auth itself; in a browser AniList comes back to this page
+  const redirect = inApp ? 'animetro://auth' : location.origin + location.pathname;
   page.innerHTML = `
     <section>
       <h1 style="font-size:clamp(2rem,5vw,3.4rem)">Get your pass</h1>

@@ -279,6 +279,9 @@ section { margin-top: 56px; }
   margin-top: 0; padding-top: 120px; position: relative;
   background: linear-gradient(180deg, #13183355, var(--night) 85%), var(--banner) center 30%/cover no-repeat;
 }
+.trailer-link { display: grid; place-items: center; background: #000 center/cover; text-decoration: none; }
+.trailer-link span { background: #000c; color: #fff; padding: 10px 18px; border-radius: 99px; font-weight: 700; }
+.trailer-link:hover span { background: var(--marunouchi); }
 .anime-top { display: grid; grid-template-columns: 230px 1fr; gap: 36px; align-items: end; }
 .anime-top .cover { width: 100%; aspect-ratio: 23/33; object-fit: cover; border-radius: 14px; box-shadow: 0 0 0 4px var(--line), 0 24px 50px #0009; }
 .anime-top h1 { font-size: clamp(1.8rem, 4.5vw, 3.4rem); }

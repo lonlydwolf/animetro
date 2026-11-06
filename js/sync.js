@@ -29,7 +29,7 @@ function boot() {
       <div class="transfer" id="simkl"></div>
       <div class="transfer off">
         <h3>MyAnimeList</h3>
-        <p class="hint">Coming with the Mac app. MyAnimeList blocks web pages from using its API, so this needs the app. MAL-Sync already covers it for now.</p>
+        <p class="hint">Not yet. MyAnimeList blocks web pages from using its API, so this needs native code in the Mac app, planned for a later version. MAL-Sync already covers it for now.</p>
       </div>
       <div class="transfer">
         <h3>Bingers</h3>

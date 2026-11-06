@@ -1,4 +1,4 @@
-import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs } from './api.js';
+import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
@@ -87,7 +87,9 @@ async function boot() {
           <div class="vibes" id="vibes">${vibes.map(vibe).join('')}</div></section>` : ''}
 
         ${m.trailer?.site === 'youtube' ? `<section><h2>Trailer</h2><p></p>
-          <iframe class="trailer" src="https://www.youtube-nocookie.com/embed/${esc(m.trailer.id)}" title="Trailer" loading="lazy" allowfullscreen></iframe></section>` : ''}
+          ${inApp // YouTube embeds refuse to play inside apps, so the app shows the thumbnail and opens YouTube
+            ? `<a class="trailer trailer-link" href="https://www.youtube.com/watch?v=${esc(m.trailer.id)}" target="_blank" rel="noopener" style="background-image:url(https://i.ytimg.com/vi/${esc(m.trailer.id)}/hqdefault.jpg)"><span>▶ Watch on YouTube</span></a>`
+            : `<iframe class="trailer" src="https://www.youtube-nocookie.com/embed/${esc(m.trailer.id)}" title="Trailer" loading="lazy" allowfullscreen></iframe>`}</section>` : ''}
 
         ${m.characters.edges.length ? `<section><h2>Cast</h2><p class="hint">Characters and their Japanese voice actors.</p>
           <div class="cast">${m.characters.edges.map(e => `

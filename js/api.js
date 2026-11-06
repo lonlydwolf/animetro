@@ -18,6 +18,8 @@ const store = {
   set: (k, v, s = localStorage) => { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} },
 };
 export const token = () => store.get(KEY.token);
+// Running inside the macOS app (pages load from animetro://) rather than a browser.
+export const inApp = location.protocol === 'animetro:';
 
 // 18+ titles stay hidden until the rider opts in (header "18+" button).
 export const prefs = {

@@ -1,4 +1,4 @@
-import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg } from './api.js';
+import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg, inApp } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE, service } from './order.js';
 import { lineCard, showCard } from './share.js';
@@ -179,7 +179,9 @@ document.addEventListener('click', e => {
   if (add) plan([+add.dataset.plan]);
   if (e.target.closest('#card')) shareCard();
   if (e.target.closest('#share')) {
-    navigator.clipboard.writeText(location.href).then(() => toast('Link copied. Send it to a friend who keeps asking.'));
+    // an animetro:// link only opens in the app, so the app shares the AniList page instead
+    const link = inApp ? `https://anilist.co/anime/${data.anchor.id}` : location.href;
+    navigator.clipboard.writeText(link).then(() => toast('Link copied. Send it to a friend who keeps asking.'), () => toast(link));
   }
 });
 $('#perday').addEventListener('input', e => { view.perDay = +e.target.value; render(); });

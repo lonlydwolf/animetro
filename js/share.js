@@ -171,6 +171,7 @@ export async function showCard(make, filename) {
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   if (!blob) return toast("Couldn't save the card in this browser.");
   const url = URL.createObjectURL(blob), file = new File([blob], filename, { type: 'image/png' });
+  const native = window.webkit?.messageHandlers?.animetro; // the Mac app saves through a native Save dialog
   const d = document.createElement('dialog');
   d.className = 'gate share-dialog';
   d.innerHTML = `<form method="dialog">
@@ -179,12 +180,16 @@ export async function showCard(make, filename) {
       <button class="btn ghost" value="close">Close</button>
       ${navigator.clipboard && window.ClipboardItem ? '<button class="btn ghost" type="button" data-copy>Copy image</button>' : ''}
       ${navigator.canShare?.({ files: [file] }) ? '<button class="btn ghost" type="button" data-share>Share…</button>' : ''}
-      <a class="btn" href="${url}" download="${filename}">Save image</a>
+      ${native ? '<button class="btn" type="button" data-save>Save image…</button>' : `<a class="btn" href="${url}" download="${filename}">Save image</a>`}
     </div></form>`;
   document.body.append(d);
   d.addEventListener('close', () => { URL.revokeObjectURL(url); d.remove(); });
   d.querySelector('[data-copy]')?.addEventListener('click', () =>
     navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => toast('Image copied.'), () => toast("Couldn't copy. Save it instead.")));
   d.querySelector('[data-share]')?.addEventListener('click', () => navigator.share({ files: [file] }).catch(() => {}));
+  d.querySelector('[data-save]')?.addEventListener('click', async () => {
+    const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+    native.postMessage({ type: 'save', name: filename, data: b64 });
+  });
   d.showModal();
 }
