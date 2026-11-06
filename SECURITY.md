@@ -14,4 +14,6 @@ On your device only:
 - your 18+, blur and chime settings
 - for the current tab only: your profile and AniList answers from the last 5 minutes
 
+In a browser this is the site's local storage; the Mac app keeps it in `~/Library/WebKit/local.animetro` (quit the app and delete that folder to reset it).
+
 **Disconnect** on My pass clears your login; turning backup sync off forgets Simkl. Nothing in this repository contains anyone's keys or tokens, and CI scans every push for leaked secrets.
