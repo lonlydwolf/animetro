@@ -2,17 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Animetro</string>
-  <key>CFBundleDisplayName</key><string>Animetro</string>
-  <key>CFBundleIdentifier</key><string>local.animetro</string>
-  <key>CFBundleExecutable</key><string>Animetro</string>
-  <key>CFBundleIconFile</key><string>Animetro</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.2</string>
-  <key>CFBundleVersion</key><string>3</string>
-  <key>LSMinimumSystemVersion</key><string>13.0</string>
-  <key>LSApplicationCategoryType</key><string>public.app-category.entertainment</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSHumanReadableCopyright</key><string>Live data from AniList.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Animetro</string>
+	<key>CFBundleExecutable</key>
+	<string>Animetro</string>
+	<key>CFBundleIconFile</key>
+	<string>Animetro</string>
+	<key>CFBundleIdentifier</key>
+	<string>local.animetro</string>
+	<key>CFBundleName</key>
+	<string>Animetro</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1.0.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.entertainment</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Live data from AniList.</string>
 </dict>
 </plist>

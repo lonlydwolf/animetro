@@ -2,11 +2,15 @@
 // The HTML/JS/CSS ship inside the app and load through an animetro:// scheme
 // (ES modules refuse to load from file://). AniList login redirects to animetro://auth,
 // which this window catches before it goes anywhere.
+//
+// Dev mode: ANIMETRO_WEB=/path/to/animetro serves the files straight from that folder, so an edit
+// only needs Cmd+R (see mac/dev.sh). Right-click > Inspect Element opens Safari's Web Inspector.
 import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
-let web = Bundle.main.resourceURL!.appendingPathComponent("web").standardizedFileURL
+let web = (ProcessInfo.processInfo.environment["ANIMETRO_WEB"].map { URL(fileURLWithPath: $0) }
+  ?? Bundle.main.resourceURL!.appendingPathComponent("web")).standardizedFileURL
 let home = URL(string: "animetro://app/index.html")!
 
 // Serves files from Contents/Resources/web for animetro://app/<path>.
@@ -29,7 +33,7 @@ final class Files: NSObject, WKURLSchemeHandler {
   func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 }
 
-final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
+final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
   var window: NSWindow!
   var view: WKWebView!
   var titleWatch: NSKeyValueObservation?
@@ -39,10 +43,12 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
     let config = WKWebViewConfiguration()
     config.setURLSchemeHandler(Files(), forURLScheme: "animetro")
     config.websiteDataStore = .default() // keeps your login and settings between launches
+    config.userContentController.add(self, name: "animetro") // the page asks for native help here (saving images)
     view = WKWebView(frame: .zero, configuration: config)
     view.navigationDelegate = self
     view.uiDelegate = self
     view.allowsBackForwardNavigationGestures = true
+    if #available(macOS 13.3, *) { view.isInspectable = true } // right-click > Inspect Element
     view.setValue(false, forKey: "drawsBackground") // no white flash before the dark page paints
 
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
@@ -99,15 +105,30 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
       localStorage.removeItem('animetro.selftest');
       const api = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
-      return JSON.stringify({ header: !!document.querySelector('header.top'), moods: document.querySelectorAll('.mood').length,
-        trending: document.querySelectorAll('#trending .card').length, stored, api, title: document.title });
+      return JSON.stringify({ header: !!document.querySelector('header.top'), page: document.querySelector('main')?.innerText.slice(0, 60),
+        stored, api, title: document.title, secure: isSecureContext, clipboard: !!navigator.clipboard,
+        native: !!window.webkit?.messageHandlers?.animetro, web: '\(web.path)' });
       """
     webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { result in
       switch result {
-      case .success(let value): print(value as? String ?? "\(value ?? "nil")")
+      case .success(let value): print(value as? String ?? String(describing: value))
       case .failure(let error): print("{\"error\": \"\(error.localizedDescription)\"}")
       }
       exit(0)
+    }
+  }
+
+  // Messages from the page. "save": a share card as base64 PNG, saved through a normal Save dialog
+  // (a web view can't download files on its own).
+  func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard let body = message.body as? [String: Any], body["type"] as? String == "save",
+          let name = body["name"] as? String, let b64 = body["data"] as? String, let data = Data(base64Encoded: b64) else { return }
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = name
+    panel.allowedContentTypes = [.png]
+    panel.beginSheetModal(for: window) { response in
+      guard response == .OK, let url = panel.url else { return }
+      do { try data.write(to: url) } catch { NSAlert(error: error).runModal() }
     }
   }
 
