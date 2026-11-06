@@ -1,4 +1,5 @@
 import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds, saveEntries } from './api.js';
+import { countPages } from './probe.js';
 import { header, $, esc, FORMAT, toast, nsfw, cover } from './ui.js';
 
 header();
@@ -34,22 +35,13 @@ async function filters() {
 const ARGS = 'type:ANIME,isAdult:$adult,id_not_in:$not,popularity_greater:$pop,genre:$genre,genre_not_in:$gnot,tag_not_in:$tnot,startDate_greater:$from,startDate_lesser:$to';
 const VARS = '$adult:Boolean,$not:[Int],$pop:Int,$genre:String,$gnot:[String],$tnot:[String],$from:FuzzyDateInt,$to:FuzzyDateInt';
 
-// AniList's pageInfo.total is stuck at 5000, so estimate the match count by probing
-// which pages exist: first powers of two, then 16 steps between the last hit and the first miss.
-async function count(f) {
-  const probe = async positions => {
+// How many shows match, exactly (see probe.js): every match can then be pulled.
+function count(f) {
+  return countPages(async positions => {
     const parts = positions.map((p, i) => `p${i}: Page(page:${p},perPage:1){ media(${ARGS},sort:ID){id} }`);
     const d = await gql(`query(${VARS}){ ${parts.join(' ')} }`, f);
     return positions.filter((_, i) => d[`p${i}`]?.media.length);
-  };
-  const pows = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 5000];
-  const hit = (await probe(pows)).at(-1);
-  if (!hit || hit === 5000) return hit || 0;
-  const step = hit / 16;
-  if (step < 1) return hit; // small sets were already probed densely enough
-  const next = Math.min(hit * 2, 5000);
-  const steps = Array.from({ length: 15 }, (_, i) => Math.round(hit + ((i + 1) * (next - hit)) / 16));
-  return (await probe(steps)).at(-1) || hit;
+  });
 }
 
 async function pull(n) {
