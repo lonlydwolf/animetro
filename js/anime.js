@@ -1,5 +1,6 @@
 import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw } from './ui.js';
+import { siteLinks } from './streams.js';
 
 header();
 const id = +qs().get('id');
@@ -97,8 +98,7 @@ async function boot() {
       <aside class="side-box">
         ${m.nextAiringEpisode ? `<div><small class="hint">Episode ${m.nextAiringEpisode.episode} airs in</small>
           <div class="countdown" data-at="${m.nextAiringEpisode.airingAt}">${countdown(m.nextAiringEpisode.airingAt - Date.now() / 1000)}</div></div>` : ''}
-        ${streams.length ? `<div><h3>Where to watch</h3><p class="hint">Availability depends on your region.</p><div class="stream">${streams.map(l => `
-          <a href="${esc(l.url)}" target="_blank" rel="noopener" style="--c:${l.color || 'var(--rail)'}">${l.icon ? `<img src="${esc(l.icon)}" alt="">` : ''}${esc(l.site)}</a>`).join('')}</div></div>` : ''}
+        ${watch(m, streams)}
         <dl>
           ${row('Studio', m.studios.nodes.map(s => s.name).join(', '))}
           ${row('Aired', [date(m.startDate), date(m.endDate)].filter(Boolean).join(' to '))}
@@ -123,6 +123,24 @@ async function boot() {
     e.target.remove();
   });
   renderListControls();
+}
+
+// Official links from AniList first, then the free sites everythingmoe ranks (hentai sites for 18+ titles).
+function watch(m, streams) {
+  const sites = siteLinks(m), SHOW = 6;
+  const tip = { direct: s => `Opens ${s.host} on this show`, search: s => `Search ${s.host} for “${s.q}”`, home: s => `Opens ${s.host} and copies “${s.q}” for its search box` };
+  const site = s => `<a class="site" href="${esc(s.href)}" target="_blank" rel="noopener noreferrer"${s.kind === 'home' ? ` data-copy="${esc(s.q)}"` : ''} title="${esc(tip[s.kind](s))}">
+      <img src="${esc(s.icon)}" alt="" loading="lazy">
+      <span><b>${esc(s.name)}</b><small>${s.kind === 'direct' ? 'Opens this show' : s.kind === 'home' ? 'Copy & open' : esc(s.tags || 'Search')}</small></span></a>`;
+  return `<div>
+    <h3>Where to watch</h3>
+    ${streams.length ? `<p class="hint">Official, from AniList. Availability depends on your region.</p><div class="stream">${streams.map(l => `
+      <a href="${esc(l.url)}" target="_blank" rel="noopener" style="--c:${l.color || 'var(--rail)'}">${l.icon ? `<img src="${esc(l.icon)}" alt="">` : ''}${esc(l.site)}</a>`).join('')}</div>` : ''}
+    <p class="hint" style="margin:${streams.length ? '16px' : '6px'} 0 8px">${m.isAdult ? 'Hentai streaming' : 'Free streaming sites'}, ranked by <a href="https://everythingmoe.com/" target="_blank" rel="noopener">everythingmoe</a>. Most links search for “${esc(sites[0]?.q)}”.</p>
+    <div class="sites">${sites.slice(0, SHOW).map(site).join('')}</div>
+    ${sites.length > SHOW ? `<details class="more-sites"><summary>${sites.length - SHOW} more sites</summary><div class="sites">${sites.slice(SHOW).map(site).join('')}</div></details>` : ''}
+    <p class="hint" style="margin:10px 0 0">Unlicensed and ad-supported. Whether they're legal depends on where you live.</p>
+  </div>`;
 }
 
 function vibe(t) {
@@ -157,5 +175,10 @@ async function save(change) {
   } catch (e) { toast(e.message); }
 }
 
+// Sites without a search URL: copy the title as the link opens, so it's ready to paste.
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-copy]');
+  if (a) navigator.clipboard?.writeText(a.dataset.copy).then(() => toast(`Copied “${a.dataset.copy}”. Paste it in ${a.querySelector('b').textContent}'s search.`), () => {});
+});
 setInterval(() => document.querySelectorAll('[data-at]').forEach(el => (el.textContent = countdown(el.dataset.at - Date.now() / 1000))), 1000);
 boot().catch(e => fail($('#page'), e));

@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 APP=build/Animetro.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/web"
-cp -R ./*.html favicon.svg css js "$APP/Contents/Resources/web/"
+cp -R ./*.html favicon.svg css js img "$APP/Contents/Resources/web/"
 cp mac/Info.plist "$APP/Contents/"
 cp mac/Animetro.icns "$APP/Contents/Resources/"
 swiftc -O mac/Animetro.swift -o "$APP/Contents/MacOS/Animetro"

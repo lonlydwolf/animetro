@@ -6,6 +6,7 @@ globalThis.sessionStorage = mem(); globalThis.localStorage = mem();
 const { rankSearch, gql } = await import('../js/api.js');
 const { crawl, classify, storyOrder, byDate } = await import('../js/order.js');
 const { ride, taste, match, TIERS } = await import('../js/score.js');
+const { searchTerm, siteLinks, ANIME_SITES, HENTAI_SITES } = await import('../js/streams.js');
 
 // ---- 5-minute cache: same query twice = one request; a mutation clears it ----
 let calls = 0;
@@ -99,5 +100,18 @@ const loud = match({ genres: ['Action'], tags: [{ name: 'Mecha', rank: 90 }], av
 assert(sad.pct > loud.pct);
 assert.deepEqual(sad.why, ['Tragedy']);
 assert(sad.pct <= 100 && loud.pct >= 0);
+
+// ---- where to watch ----
+assert.equal(searchTerm({ title: { romaji: 'Kimetsu no Yaiba: Yuukaku-hen' } }), 'Kimetsu no Yaiba');
+assert.equal(searchTerm({ title: { romaji: 'Re:Zero kara Hajimeru Isekai Seikatsu' } }), 'Re:Zero kara Hajimeru Isekai Seikatsu');
+const sfw = siteLinks({ title: { romaji: 'Sousou no Frieren' }, isAdult: false });
+assert.equal(sfw.length, ANIME_SITES.length);
+assert.equal(sfw.find(x => x.name === 'Miruro').href, 'https://www.miruro.cx/search?query=Sousou%20no%20Frieren');
+assert.equal(sfw.find(x => x.name === 'animepahe').kind, 'home'); // no search URL: homepage + copy
+assert.equal(siteLinks({ id: 154587, title: { romaji: 'Sousou no Frieren' } }).find(x => x.name === 'AnimeX').href, 'https://animex.one/anime/154587'); // AniList ID straight to the show
+// every site has its bundled logo
+const { existsSync } = await import('node:fs');
+for (const x of [...sfw, ...siteLinks({ title: { romaji: 'X' }, isAdult: true })]) assert(existsSync(new URL('../' + x.icon, import.meta.url)), x.icon);
+assert.equal(siteLinks({ title: { romaji: 'X' }, isAdult: true }).length, HENTAI_SITES.length); // 18+ titles get the hentai list
 
 console.log('all checks passed');
