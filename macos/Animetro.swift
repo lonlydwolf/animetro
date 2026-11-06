@@ -3,8 +3,8 @@
 // (ES modules refuse to load from file://). AniList login redirects to animetro://auth,
 // which this window catches before it goes anywhere.
 //
-// Dev mode: ANIMETRO_WEB=/path/to/animetro serves the files straight from that folder, so an edit
-// only needs Cmd+R (see mac/dev.sh). Right-click > Inspect Element opens Safari's Web Inspector.
+// Dev mode: ANIMETRO_WEB=/path/to/animetro/web serves the files straight from that folder, so an edit
+// only needs Cmd+R (see macos/dev.sh). Right-click > Inspect Element opens Safari's Web Inspector.
 import Cocoa
 import WebKit
 import UniformTypeIdentifiers

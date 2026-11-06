@@ -19,7 +19,7 @@ jobs:
       - name: Logic checks
         run: node test/check.mjs
       - name: Build the app (Apple Silicon + Intel)
-        run: VERSION="${GITHUB_REF_NAME#v}" ./mac/build.sh
+        run: VERSION="${GITHUB_REF_NAME#v}" ./macos/build.sh
       - name: Zip it
         run: |
           VERSION="${GITHUB_REF_NAME#v}"

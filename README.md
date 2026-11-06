@@ -17,15 +17,15 @@ Build it yourself (needs Xcode or the Command Line Tools, `xcode-select --instal
 
 ```sh
 cd animetro
-./mac/build.sh             # -> build/Animetro.app
-./mac/build.sh --install   # also copies it to /Applications
+./macos/build.sh             # -> build/Animetro.app
+./macos/build.sh --install   # also copies it to /Applications
 ```
 
 ### In a browser
 
 ```sh
 cd animetro
-python3 -m http.server 5180
+python3 -m http.server 5180 --directory web
 ```
 
 Open http://localhost:5180. It has no build step and no dependencies. Any static file server works, but it has to be a server, because ES modules won't load from `file://`.
@@ -33,7 +33,7 @@ Open http://localhost:5180. It has no build step and no dependencies. Any static
 ### Developing
 
 - Browser: run the server above and reload.
-- Mac app: `./mac/dev.sh` runs the app against the files in this folder, so an edit only needs **⌘R** in the app. Right-click › **Inspect Element** opens Safari's Web Inspector. Only changes to `mac/Animetro.swift` need a rebuild (the script does it for you).
+- Mac app: `./macos/dev.sh` runs the app against the files in `web/`, so an edit only needs **⌘R** in the app. Right-click › **Inspect Element** opens Safari's Web Inspector. Only changes to `macos/Animetro.swift` need a rebuild (the script does it for you).
 
 Run the logic checks (watch order, search ranking, ride points, taste matching, sync, time-fit, finish odds and the metro map) with Node 18+:
 
@@ -104,7 +104,7 @@ AniList currently allows 30 requests a minute. Animetro batches queries, reuses 
 
 ## How the Mac app works
 
-`mac/Animetro.swift` is one Swift file: a window with a WebKit view that loads the same HTML, CSS and JavaScript from inside the app through an `animetro://` address, so there is no server and no port. AniList sends logins to `animetro://auth`, which the window catches. Links to other sites open in your browser. The app keeps its own login and settings, separate from your browser.
+`macos/Animetro.swift` is one Swift file: a window with a WebKit view that loads the same HTML, CSS and JavaScript from inside the app through an `animetro://` address, so there is no server and no port. AniList sends logins to `animetro://auth`, which the window catches. Links to other sites open in your browser. The app keeps its own login and settings, separate from your browser.
 
 ## Releases
 

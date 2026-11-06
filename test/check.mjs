@@ -3,15 +3,15 @@ import assert from 'node:assert';
 globalThis.location = { hash: '', pathname: '/', search: '', href: 'http://localhost/' }; // api.js peeks at the URL on load
 const mem = () => { const m = new Map(); return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i], get length() { return m.size; } }; };
 globalThis.sessionStorage = mem(); globalThis.localStorage = mem();
-const { rankSearch, gql } = await import('../js/api.js');
-const { crawl, classify, storyOrder, byDate, service } = await import('../js/order.js');
-const { ride, taste, match, TIERS } = await import('../js/score.js');
-const { searchTerm, siteLinks, ANIME_SITES, HENTAI_SITES } = await import('../js/streams.js');
-const { plan } = await import('../js/simkl.js');
-const { fit, remaining } = await import('../js/fit.js');
-const { finishOdds } = await import('../js/odds.js');
-const { franchises, districts, snake } = await import('../js/map.js');
-const { episodesIn, describe, streak } = await import('../js/journal.js');
+const { rankSearch, gql } = await import('../web/js/api.js');
+const { crawl, classify, storyOrder, byDate, service } = await import('../web/js/order.js');
+const { ride, taste, match, TIERS } = await import('../web/js/score.js');
+const { searchTerm, siteLinks, ANIME_SITES, HENTAI_SITES } = await import('../web/js/streams.js');
+const { plan } = await import('../web/js/simkl.js');
+const { fit, remaining } = await import('../web/js/fit.js');
+const { finishOdds } = await import('../web/js/odds.js');
+const { franchises, districts, snake } = await import('../web/js/map.js');
+const { episodesIn, describe, streak } = await import('../web/js/journal.js');
 
 // ---- 5-minute cache: same query twice = one request; a mutation clears it ----
 let calls = 0;
@@ -116,7 +116,7 @@ assert.equal(sfw.find(x => x.name === 'animepahe').kind, 'home'); // no search U
 assert.equal(siteLinks({ id: 154587, title: { romaji: 'Sousou no Frieren' } }).find(x => x.name === 'AnimeX').href, 'https://animex.one/anime/154587'); // AniList ID straight to the show
 // every site has its bundled logo
 const { existsSync } = await import('node:fs');
-for (const x of [...sfw, ...siteLinks({ title: { romaji: 'X' }, isAdult: true })]) assert(existsSync(new URL('../' + x.icon, import.meta.url)), x.icon);
+for (const x of [...sfw, ...siteLinks({ title: { romaji: 'X' }, isAdult: true })]) assert(existsSync(new URL('../web/' + x.icon, import.meta.url)), x.icon);
 assert.equal(siteLinks({ title: { romaji: 'X' }, isAdult: true }).length, HENTAI_SITES.length); // 18+ titles get the hentai list
 
 // ---- Simkl backup: only send what's different, never remove ----
@@ -175,7 +175,7 @@ const long = finishOdds(hist, { episodes: 120, genres: ['Action'], format: 'TV' 
 assert(short.pct > short.base && long.pct < long.base, `${short.pct} ${long.pct} ${short.base}`);
 assert(long.reasons.some(r => /You leave 75% of shows over 52 episodes unfinished/.test(r)), long.reasons.join(' | '));
 // quiet drops: a finished show left on Watching for months counts as given up; a fresh one is undecided
-const { outcome } = await import('../js/odds.js');
+const { outcome } = await import('../web/js/odds.js');
 const NOW = 2e9, old = NOW - 200 * 86400, recent = NOW - 86400;
 assert.equal(outcome({ status: 'CURRENT', updatedAt: old, media: { status: 'FINISHED' } }, NOW), 0);
 assert.equal(outcome({ status: 'CURRENT', updatedAt: recent, media: { status: 'FINISHED' } }, NOW), null);

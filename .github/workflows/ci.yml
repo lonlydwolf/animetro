@@ -24,6 +24,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ./mac/build.sh
+      - run: ./macos/build.sh
       - name: Both chips in the binary
         run: lipo -info build/Animetro.app/Contents/MacOS/Animetro | grep -q "x86_64 arm64\|arm64 x86_64"
