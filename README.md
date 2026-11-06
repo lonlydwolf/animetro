@@ -1,8 +1,27 @@
 # Animetro
 
-Type an anime name in English and get its whole franchise (seasons, movies, OVAs, recaps) laid out as a train line in watch order, with live data from the [AniList API](https://docs.anilist.co).
+Type an anime name in English and get its whole franchise (seasons, movies, OVAs, recaps) laid out as a train line in watch order, with live data from the [AniList API](https://docs.anilist.co). A macOS app and a plain web app, from the same files.
+
+> [!IMPORTANT]
+> **This project was created entirely by AI.** Every line of code, the design, the tests, the build scripts, the release workflow and this README were written by Claude (Anthropic's Claude Opus 5.5), in a conversation where the repository owner asked for features, tested the app and made the decisions. No human wrote the code. Treat it accordingly: it works and is tested, but it has not had a human code review.
 
 ## Run it
+
+### macOS app
+
+Download `Animetro-<version>-macOS.zip` from the [latest release](https://github.com/lonlydwolf/animetro/releases/latest), unzip it and drag **Animetro** to Applications. It runs on Apple Silicon and Intel Macs with macOS 13 or later.
+
+The app isn't notarized by Apple (that needs a paid developer account), so the first time macOS says it can't check it. Open it once with **right-click › Open › Open**, or go to System Settings › Privacy & Security and click **Open Anyway**. In Terminal, `xattr -dr com.apple.quarantine /Applications/Animetro.app` does the same.
+
+Build it yourself (needs Xcode or the Command Line Tools, `xcode-select --install`):
+
+```sh
+cd animetro
+./mac/build.sh             # -> build/Animetro.app
+./mac/build.sh --install   # also copies it to /Applications
+```
+
+### In a browser
 
 ```sh
 cd animetro
@@ -10,6 +29,11 @@ python3 -m http.server 5180
 ```
 
 Open http://localhost:5180. It has no build step and no dependencies. Any static file server works, but it has to be a server, because ES modules won't load from `file://`.
+
+### Developing
+
+- Browser: run the server above and reload.
+- Mac app: `./mac/dev.sh` runs the app against the files in this folder, so an edit only needs **⌘R** in the app. Right-click › **Inspect Element** opens Safari's Web Inspector. Only changes to `mac/Animetro.swift` need a rebuild (the script does it for you).
 
 Run the logic checks (watch order, search ranking, ride points, taste matching, sync, time-fit, finish odds and the metro map) with Node 18+:
 
@@ -42,7 +66,7 @@ Logging an episode plays a short two-note chime; finishing a show plays a little
 My pass › **Backup sync** turns it on. It copies your AniList list to other trackers as a backup next to MAL-Sync. It only runs when you press the button, and it shows what would change before sending anything. It never changes AniList and never removes anything from the other tracker.
 
 - **Simkl** (free): create an app at https://simkl.com/settings/developer (type *TV, devices & command line*), paste its client ID on the Sync page, then approve the short code Simkl shows. Statuses, episode progress and scores (if you score) are matched by AniList ID. Simkl allows one write a second, so a first sync of ~600 titles takes about 15 seconds.
-- **MyAnimeList**: comes with the Mac app (MAL blocks web pages from its API).
+- **MyAnimeList**: not yet. MAL blocks web pages from its API, so it needs native code in the Mac app, planned for a later version.
 - **Bingers**: its API is a paid feature, so the Sync page explains the free route: Simkl's JSON backup, uploaded at https://bingers.app/import.
 
 Turning backup sync off forgets the Simkl connection and client ID.
@@ -69,7 +93,7 @@ There are two ways to connect, both on the **My pass** page:
 - **Username (read only):** type any public AniList username. No setup needed.
 - **Log in (can edit your lists):** AniList needs a client ID from you once.
   1. Go to https://anilist.co/settings/developer → *Create new client*.
-  2. Set the redirect URL to `http://localhost:5180/pass.html` (match the port you serve on).
+  2. Set the redirect URL to `http://localhost:5180/pass.html` for the browser (match the port you serve on), or `animetro://auth` for the Mac app. A client has one redirect URL, so use two clients if you use both.
   3. Paste the client ID on the My pass page and log in.
 
 ## What's stored
@@ -78,6 +102,14 @@ Everything is fetched live from AniList. The browser keeps only your login token
 
 AniList currently allows 30 requests a minute. Animetro batches queries, reuses answers from the last 5 minutes, and reads AniList's "requests left" counter: when it gets low, it pauses until the minute resets instead of getting refused. If you ever see "Pausing…", that's why.
 
-## macOS app (not finished)
+## How the Mac app works
 
-`mac/` holds a native wrapper (`mac/build.sh` builds `build/Animetro.app`) that runs the same files without a server. It isn't tested yet; use the local server for now.
+`mac/Animetro.swift` is one Swift file: a window with a WebKit view that loads the same HTML, CSS and JavaScript from inside the app through an `animetro://` address, so there is no server and no port. AniList sends logins to `animetro://auth`, which the window catches. Links to other sites open in your browser. The app keeps its own login and settings, separate from your browser.
+
+## Releases
+
+Pushing a tag like `v1.2.0` runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it runs the checks, builds the universal app with that version, zips it and publishes a GitHub release. Every push and pull request runs the checks in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## License
+
+[MIT](LICENSE). Anime data comes from AniList and Simkl under their API terms; the streaming-site list and logos come from everythingmoe.com.
