@@ -1,25 +1,29 @@
 name: Release
 
-# Push a tag like v1.2.0 to build the Mac app and publish it as a GitHub release.
+# Push a tag like v1.2.0: the full CI runs first, then the Mac app is built and published as a release.
 on:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   release:
+    needs: ci
     runs-on: macos-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the release
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Logic checks
-        run: npm test
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build the app (Apple Silicon + Intel)
         run: VERSION="${GITHUB_REF_NAME#v}" ./macos/build.sh
+      - name: Check the built app starts
+        run: ./macos/selftest.sh
       - name: Zip it
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -30,14 +34,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          cat > notes.md <<NOTES
-          ## Install
-          Unzip, drag **Animetro** to Applications. Runs on Apple Silicon and Intel, macOS 13 or later.
-
-          The app isn't notarized, so the first time macOS says it can't check it: **right-click › Open › Open**,
-          or System Settings › Privacy & Security › **Open Anyway**.
-
-          This project was created entirely by AI (Claude Opus 5.5). See the README.
-          NOTES
+          # this version's section of CHANGELOG.md becomes the release notes
+          NOTES=$(awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} /^## \[/ {on=0} on' CHANGELOG.md 2>/dev/null || true)
+          {
+            echo "$NOTES"
+            echo
+            echo "## Install"
+            echo "Unzip, drag **Animetro** to Applications. Runs on Apple Silicon and Intel, macOS 13 or later."
+            echo "The app isn't notarized, so the first time macOS says it can't check it: **right-click › Open › Open**,"
+            echo "or System Settings › Privacy & Security › **Open Anyway**."
+            echo
+            echo "This project was created entirely by AI (Claude Opus 5.5). See the README."
+          } > notes.md
           gh release create "$GITHUB_REF_NAME" "Animetro-$VERSION-macOS.zip" "Animetro-$VERSION-macOS.zip.sha256" \
-            --title "Animetro $VERSION" --notes-file notes.md --generate-notes
+            --title "Animetro $VERSION" --notes-file notes.md
