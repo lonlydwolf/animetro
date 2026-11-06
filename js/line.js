@@ -1,15 +1,19 @@
 import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw } from './ui.js';
-import { crawl, classify, storyOrder, byDate, ROLE } from './order.js';
+import { crawl, classify, storyOrder, byDate, ROLE, service } from './order.js';
+import { lineCard, showCard } from './share.js';
 
 header();
 
 const FIELDS = `id title{english romaji} format status episodes duration season seasonYear startDate{year month day}
-  averageScore popularity isAdult coverImage{large color} bannerImage nextAiringEpisode{episode timeUntilAiring}
+  averageScore popularity isAdult tags{name} coverImage{large color} bannerImage nextAiringEpisode{episode timeUntilAiring}
   relations{edges{relationType(version:2) node{id type}}}`;
 
-const view = { order: qs().get('order') || 'release', express: qs().get('stops') === 'express', perDay: 3 };
+// stops: express | rapid | local (old links said "all", which is local)
+const SERVICES = ['express', 'rapid', 'local'];
+const view = { order: qs().get('order') || 'release', service: SERVICES.includes(qs().get('stops')) ? qs().get('stops') : qs().get('stops') === 'all' ? 'local' : 'rapid', perDay: 3 };
 let data; // { stops, transfers, anchor, list, user, capped }
+let shown; // what render() last drew, for the share card
 
 // ---- numbers -------------------------------------------------------------
 const epCount = m => m.status === 'NOT_YET_RELEASED' ? 0 : m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : m.format === 'MOVIE' ? 1 : 0);
@@ -24,7 +28,8 @@ const seen = (m, list) => {
 function render() {
   const { anchor, list, user } = data;
   let stops = view.order === 'story' ? storyOrder(data.stops) : [...data.stops].sort(byDate);
-  if (view.express) stops = stops.filter(m => m.role === 'main');
+  const every = stops.length;
+  if (view.service !== 'local') stops = stops.filter(m => m.svc.level === 'express' || (view.service === 'rapid' && m.svc.level === 'rapid'));
   const letter = (title(anchor).match(/[A-Za-z]/)?.[0] || 'A').toUpperCase();
   const counted = stops.filter(m => m.role !== 'recap');
   const totalEps = counted.reduce((s, m) => s + epCount(m), 0);
@@ -33,6 +38,7 @@ function render() {
   const totalMin = counted.reduce((s, m) => s + epCount(m) * epLength(m), 0);
   const hereIdx = list.size ? stops.findIndex(m => m.role !== 'recap' && m.status !== 'NOT_YET_RELEASED' && seen(m, list) < epCount(m)) : -1;
   const visited = totalMin - leftMin;
+  shown = { stops, hereIdx, totalEps, totalMin, pct: list.size && totalMin ? Math.round((visited / totalMin) * 100) : null };
 
   $('#stops').innerHTML = stops.map((m, i) => {
     const e = list.get(m.id);
@@ -58,7 +64,8 @@ function render() {
             </span>
           </a>
           <div class="tags">
-            ${m.role !== 'main' ? `<span class="tag role">${ROLE[m.role]}</span>` : ''}
+            ${m.role !== 'main' || m.svc.level === 'local' ? `<span class="tag role${m.svc.level === 'local' ? ' skip' : ''}" title="${m.svc.level === 'local' ? 'Most people skip this stop' : 'An extra most fans watch'}">${
+              m.role === 'recap' ? ROLE.recap : m.role === 'main' ? esc(m.svc.why[0].toUpperCase() + m.svc.why.slice(1)) : `${ROLE[m.role]} · ${esc(m.svc.why)}`}</span>` : ''}
             ${air}${soon}
             ${m.averageScore ? `<span class="tag">${m.averageScore}%</span>` : ''}
             ${e ? `<span class="tag s-${e.status}">${STATUS[e.status]}${e.status === 'CURRENT' ? ` ${e.progress}/${eps || '?'}` : ''}</span>`
@@ -100,7 +107,10 @@ function render() {
     <li><a href="line.html?id=${m.id}"><img src="${m.coverImage.large}" alt="" loading="lazy">
       <span><b>${esc(title(m))}</b><small>${m.role}, ${FORMAT[m.format] || ''} ${m.startDate.year || ''}</small></span></a></li>`).join('');
 
-  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.value === (b.dataset.view === 'order' ? view.order : view.express ? 'express' : 'all'))));
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.value === (b.dataset.view === 'order' ? view.order : view.service))));
+  const hidden = every - stops.length;
+  $('#svc-note').innerHTML = { express: 'Express: only the main story, the TV seasons and movies that continue it.', rapid: 'Rapid: the main story plus the extras most fans watch.', local: 'Local: every stop. Extras most people skip are labelled.' }[view.service]
+    + (hidden ? ` <b>${hidden} stop${hidden === 1 ? '' : 's'} skipped.</b>` : '');
   $('#capped').hidden = !data.capped;
 }
 
@@ -113,6 +123,22 @@ async function plan(ids) {
   } catch (e) { toast(e.message); }
 }
 
+function shareCard() {
+  const { anchor, list, user } = data;
+  const { stops, hereIdx, totalEps, totalMin, pct } = shown;
+  showCard(() => lineCard({
+    name: title(anchor),
+    color: getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#ffd23f',
+    banner: anchor.bannerImage || anchor.coverImage.large,
+    stops: stops.map((m, i) => ({
+      name: title(m),
+      state: i === hereIdx ? 'here' : m.status === 'NOT_YET_RELEASED' ? 'soon' : seen(m, list) >= epCount(m) && epCount(m) > 0 ? 'done' : m.role === 'recap' ? 'recap' : 'todo',
+    })),
+    facts: [`${stops.length} stops`, `${totalEps} episodes`, `${minutes(totalMin)} ride time`, view.order === 'story' ? 'story order' : 'release order'],
+    progress: pct, rider: user?.name,
+  }), `${title(anchor).replace(/[^\w]+/g, '-').toLowerCase()}-watch-order.png`);
+}
+
 // ---- boot ----------------------------------------------------------------
 async function boot() {
   let id = +qs().get('id');
@@ -122,10 +148,11 @@ async function boot() {
     if (!id) throw new Error(`No series called "${qs().get('q')}" found. Try the English or Japanese title.`);
     history.replaceState(null, '', `line.html?id=${id}`);
   }
-  if (!id) { location.href = 'index.html'; return; }
+  if (!id) { location.href = 'search.html'; return; }
   const fetchMany = ids => gql(`query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){${FIELDS}}}}`, { ids }).then(d => d.Page.media);
   const graph = await crawl(id, fetchMany, n => ($('#found').textContent = `${n} stop${n === 1 ? '' : 's'} found`));
   const { stops, transfers, anchor } = classify(id, graph, { adult: prefs.adult() });
+  stops.forEach(m => (m.svc = service(m, anchor)));
   const [user, list] = await Promise.all([me(), listStatus([...stops, ...transfers].map(m => m.id))]);
   data = { stops, transfers, anchor, list, user, capped: graph.capped };
 
@@ -142,14 +169,15 @@ async function boot() {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-view]');
   if (b) {
-    if (b.dataset.view === 'order') view.order = b.dataset.value; else view.express = b.dataset.value === 'express';
+    if (b.dataset.view === 'order') view.order = b.dataset.value; else view.service = b.dataset.value;
     const p = qs();
-    p.set('order', view.order); p.set('stops', view.express ? 'express' : 'all');
+    p.set('order', view.order); p.set('stops', view.service);
     history.replaceState(null, '', `?${p}`);
     render();
   }
   const add = e.target.closest('[data-plan]');
   if (add) plan([+add.dataset.plan]);
+  if (e.target.closest('#card')) shareCard();
   if (e.target.closest('#share')) {
     navigator.clipboard.writeText(location.href).then(() => toast('Link copied. Send it to a friend who keeps asking.'));
   }

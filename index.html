@@ -4,61 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Animetro</title>
-  <meta name="description" content="Find the watch order for any anime franchise, live from AniList.">
   <link rel="icon" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <main>
-    <section class="hero">
-      <h1>Where to next?</h1>
-      <p>Type a series name in English. You'll get every season, movie and OVA laid out as a train line, in the order to watch them.</p>
-      <div class="hero-search">
-        <input id="q" type="search" placeholder="Attack on Titan, Fate, Monogatari…" aria-label="Series name" autofocus>
-      </div>
-      <div class="try">Try
-        <a href="line.html?q=Monogatari">Monogatari</a>
-        <a href="line.html?q=Fate%2FZero">Fate</a>
-        <a href="line.html?q=Gintama">Gintama</a>
-        <a href="line.html?q=Demon%20Slayer">Demon Slayer</a>
-        <a href="line.html?q=Haikyu">Haikyu!!</a>
-      </div>
-      <svg class="hero-lines" viewBox="0 0 1440 170" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-        <path d="M-20 40 H420 L500 120 H1460" stroke="var(--ginza)" />
-        <path d="M-20 130 H300 L380 60 H900 L960 120 H1460" stroke="var(--marunouchi)" style="animation-delay:.15s" />
-        <path d="M-20 90 H560 L620 150 H1100 L1160 90 H1460" stroke="var(--tozai)" style="animation-delay:.3s" />
-        <path d="M-20 160 H700 L780 80 H1460" stroke="var(--chiyoda)" style="animation-delay:.45s" />
-        <g>
-          <circle cx="240" cy="40" r="11" style="animation-delay:1.6s" />
-          <circle cx="640" cy="60" r="11" style="animation-delay:1.8s" />
-          <circle cx="840" cy="120" r="11" style="animation-delay:2s" />
-          <circle cx="1040" cy="80" r="11" style="animation-delay:2.2s" />
-          <circle cx="1300" cy="90" r="11" style="animation-delay:2.4s" />
-        </g>
-      </svg>
-    </section>
-
-    <section id="continue" hidden>
-      <div class="section-head"><h2>Continue your journey</h2><a href="pass.html">Your pass</a></div>
-      <div id="journeys" class="journeys"></div>
-    </section>
-
-    <section>
-      <div class="section-head"><h2>What are you in the mood for?</h2><a href="explore.html">All filters</a></div>
-      <div id="moods" class="lines"></div>
-    </section>
-
-    <section>
-      <div class="section-head"><h2>Trending this week</h2><a href="explore.html?sort=TRENDING_DESC">See more</a></div>
-      <div id="trending" class="row"></div>
-    </section>
-
-    <section>
-      <div class="section-head"><h2>Next departures</h2><a href="departures.html">Full board</a></div>
-      <div id="soon" class="journeys"></div>
-    </section>
+  <main id="page">
+    <div class="loading"><div class="train" aria-hidden="true"><i></i><i></i><i></i></div><p>Checking the platform…</p></div>
   </main>
   <script type="module" src="js/home.js"></script>
 </body>

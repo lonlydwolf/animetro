@@ -32,10 +32,11 @@
           </div>
           <p class="hint">Release order is how fans first saw it and is usually best for a first watch. Story order follows the timeline, so prequels come first.</p>
           <div class="seg" role="group" aria-label="Stops">
-            <button data-view="stops" data-value="all">All stops</button>
             <button data-view="stops" data-value="express">Express</button>
+            <button data-view="stops" data-value="rapid">Rapid</button>
+            <button data-view="stops" data-value="local">Local</button>
           </div>
-          <p class="hint">Express keeps only the main story: TV seasons and the movies that continue it.</p>
+          <p class="hint" id="svc-note">Express: the main story. Rapid: plus the extras most fans watch. Local: every stop.</p>
 
           <div id="progress" class="progress" hidden></div>
 
@@ -47,6 +48,7 @@
 
           <button id="plan-all" class="btn" hidden></button>
           <button id="share" class="btn ghost">Copy link to this line</button>
+          <button class="btn ghost" id="card" type="button">Share card</button>
           <p id="capped" class="hint" hidden>This franchise is huge. Showing the first 120 stops.</p>
 
           <div id="transfers" hidden>

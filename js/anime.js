@@ -1,6 +1,8 @@
 import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw } from './ui.js';
 import { siteLinks } from './streams.js';
+import { chime } from './chime.js';
+import { finishOdds } from './odds.js';
 
 header();
 const id = +qs().get('id');
@@ -32,7 +34,7 @@ async function boot() {
   if (m.isAdult && !prefs.adult()) {
     $('#page').innerHTML = `<section class="fy-hero"><span class="roundel" style="border-color:var(--marunouchi)">18</span><h1 style="margin-top:16px">This stop is 18+</h1>
       <p class="hint" style="font-size:1rem">AniList marks this title as adult content. Animetro hides 18+ titles unless you turn them on.</p>
-      <p style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="gate-open">Show 18+ titles</button><a class="btn ghost" href="index.html">Back to search</a></p></section>`;
+      <p style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="gate-open">Show 18+ titles</button><a class="btn ghost" href="search.html">Back to search</a></p></section>`;
     $('#gate-open').onclick = adultGate;
     return;
   }
@@ -96,6 +98,7 @@ async function boot() {
       </div>
 
       <aside class="side-box">
+        <div id="odds" hidden></div>
         ${m.nextAiringEpisode ? `<div><small class="hint">Episode ${m.nextAiringEpisode.episode} airs in</small>
           <div class="countdown" data-at="${m.nextAiringEpisode.airingAt}">${countdown(m.nextAiringEpisode.airingAt - Date.now() / 1000)}</div></div>` : ''}
         ${watch(m, streams)}
@@ -123,6 +126,26 @@ async function boot() {
     e.target.remove();
   });
   renderListControls();
+  odds().catch(() => {}); // a nice-to-have: stay quiet if it fails
+}
+
+// "Will you finish it?" from your own finished/dropped history. Skipped once you've finished the show.
+async function odds() {
+  if (!user || entry?.status === 'COMPLETED' || entry?.status === 'REPEATING') return;
+  const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME,status_in:[COMPLETED,REPEATING,DROPPED,PAUSED,CURRENT]){
+    lists{ entries{ status updatedAt media{ id episodes format genres status nextAiringEpisode{ episode } } } } } }`, { u: user.id });
+  const seen = new Map(d.MediaListCollection.lists.flatMap(l => l.entries).filter(e => e.media.id !== media.id).map(e => [e.media.id, e]));
+  const o = finishOdds([...seen.values()], media);
+  if (!o) return;
+  const el = $('#odds');
+  el.hidden = false;
+  el.className = 'odds-box';
+  el.style.setProperty('--p', o.pct);
+  el.innerHTML = `
+    <h3>Will you finish it?</h3>
+    <div class="odds-meter"><b>${o.pct}%</b><span>chance you'll ride this to the end</span></div>
+    <div class="bar"><i style="width:${o.pct}%"></i></div>
+    <p class="hint" style="margin:0">${o.reasons.length ? o.reasons.map(esc).join('. ') + '.' : 'About your usual.'} You finish ${o.base}% of what you start (from ${o.from} titles).</p>`;
 }
 
 // Official links from AniList first, then the free sites everythingmoe ranks (hentai sites for 18+ titles).
@@ -170,6 +193,7 @@ async function save(change) {
   try {
     const d = await saveEntries([{ mediaId: id, ...change }]);
     entry = d.m0;
+    chime(entry.status === 'COMPLETED' && entry.progress ? 'done' : 'tick');
     toast(entry.status === 'COMPLETED' ? 'Completed. Where to next?' : `Saved: ${STATUS[entry.status]}, ep ${entry.progress}`);
     renderListControls();
   } catch (e) { toast(e.message); }

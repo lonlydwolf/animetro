@@ -11,7 +11,7 @@ python3 -m http.server 5180
 
 Open http://localhost:5180. It has no build step and no dependencies. Any static file server works, but it has to be a server, because ES modules won't load from `file://`.
 
-Run the logic checks (watch order, search ranking, ride points and taste matching) with Node 18+:
+Run the logic checks (watch order, search ranking, ride points, taste matching, sync, time-fit, finish odds and the metro map) with Node 18+:
 
 ```sh
 node test/check.mjs
@@ -21,14 +21,21 @@ node test/check.mjs
 
 | Page | What it does |
 |---|---|
-| **Search** (`index.html`) | Search by English or Japanese title, browse mood "lines" (Heartbreak, Cozy, Hype…), see trending shows and the next episodes airing. |
-| **Line map** (`line.html`) | Watch order for a franchise. Switch between release order and story order (prequels first). **Express** shows only the main story. Recaps are marked as safe to skip, and spin-offs show up as transfers. A planner works out the total ride time and the date you'll finish at N episodes a day. When your AniList is connected, it marks what you've watched, shows "You are here", and can add every unwatched entry to Planning in one click. |
-| **Anime** (`anime.html`) | Details, a "vibe check" from tag strength (spoiler tags hidden), score spread, rankings, cast with voice actors, trailer, recommendations, and list controls (status, +1 episode). **Where to watch** lists official streams from AniList, then the free sites [everythingmoe.com](https://everythingmoe.com/) ranks highest (hentai sites for 18+ titles). Most links search that site for the show; the rest open the site and copy the title for you to paste. The site list lives in `js/streams.js`. These sites change domains often, so update it from everythingmoe when links stop working. |
+| **Home** (`index.html`) | Your platform: everything you're watching, split into **Ready to watch** (episodes left, "Last episode!", minutes to go) and **Waiting at the platform** (caught up, live countdown to the next episode), with +1 buttons. **Got some time?** fills 30 minutes to a 7-hour flight from your Watching and Planning lists, finishing shows first. |
+| **Discover** (`search.html`) | Search by English or Japanese title, browse mood "lines" (Heartbreak, Cozy, Hype…), see trending shows and the next episodes airing. |
+| **History** (`history.html`) | Your watch history from AniList's activity feed: episodes and time watched this week, your daily streak, a 6-month ride calendar (brighter squares = more logged), and a day-by-day timeline you can filter (episodes, completions, plans and drops). Older entries load as you scroll. |
+| **My map** (`map.html`) | Your personal metro map: every franchise you've touched is a line, every season, movie and OVA a station, filled in as you ride them (with the next unwatched stop included). Lines are grouped into studio districts; single-entry franchises sit under Local stops. |
+| **Line map** (`line.html`) | Watch order for a franchise. **Share card** saves the line as an image. Switch between release order and story order (prequels first). Three services: **Express** (main story only), **Rapid** (the default: main story plus the extras most fans watch) and **Local** (every stop, with skippable ones labelled). AniList has no "canon" flag, so skippable stops are read from the crowd: a side story, movie or special that only a few % of the main show's audience has on their list, recaps, chibi shorts, and extras of 15 minutes or less. Movies linked as sequels but almost nobody watched are flagged as probable compilations. Anything out for less than 6 months isn't judged yet. Spin-offs show up as transfers. Filler episodes inside a series aren't detected. A planner works out the total ride time and the date you'll finish at N episodes a day. When your AniList is connected, it marks what you've watched, shows "You are here", and can add every unwatched entry to Planning in one click. |
+| **Anime** (`anime.html`) | Details, a "vibe check" from tag strength (spoiler tags hidden), score spread, rankings, cast with voice actors, trailer, recommendations, and list controls (status, +1 episode). **Will you finish it?** estimates your chance of finishing the show from your own history (shows you left untouched for 3+ months count as quietly dropped), with the reasons. **Where to watch** lists official streams from AniList, then the free sites [everythingmoe.com](https://everythingmoe.com/) ranks highest (hentai sites for 18+ titles). Most links search that site for the show; the rest open the site and copy the title for you to paste. The site list lives in `js/streams.js`. These sites change domains often, so update it from everythingmoe when links stop working. |
 | **Explore** (`explore.html`) | Filter by genres, tags, format, season, year, minimum score, and **ticket class**: Everyone, Teen, Mature, or 18+ only. AniList has no official age rating, so Everyone and Teen are estimated from genres and tags. **New to me** hides anything you've watched, are watching or dropped. Filters live in the URL, so a search can be shared as a link. |
 | **For you** (`foryou.html`) | Suggestions from your watched list: **Next stops** (sequels to shows you finished but never started), **Your taste line** and **Hidden gems** (shows matching the tags you score highest, with a match %), what fans of your favourites loved, and your Planning list sorted by how well each show fits you. |
 | **Departures** (`departures.html`) | An LED-style board of this week's episodes with live countdowns, in your local time. |
 | **Gacha** (`gacha.html`) | A capsule machine that pulls random anime. Rarity rewards hidden gems: **SSR** means a high score but low popularity. Can pull only shows that are new to you. |
-| **My pass** (`pass.html`) | Your stats as a transit card, an "anime personality", a **rider rank** (ride points earn train tiers from Platform Ticket to Galaxy Express, with a progress bar to the next one), 16 **station stamps** to collect, a random pick from your Planning list, and +1 buttons for shows you're watching. |
+| **My pass** (`pass.html`) | Your stats as a transit card (**Share my pass** saves it as an image), an "anime personality", a **rider rank** (ride points earn train tiers from Platform Ticket to Galaxy Express, with a progress bar to the next one), 16 **station stamps** to collect, a random pick from your Planning list, and +1 buttons for shows you're watching. |
+
+### Departure chimes
+
+Logging an episode plays a short two-note chime; finishing a show plays a little departure melody (an original tune, synthesised in the browser). Turn them off with **Chimes on/off** on the home page.
 
 ### Backup sync (off by default)
 

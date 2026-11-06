@@ -2,6 +2,8 @@ import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, use
 import { header, $, esc, toast, fail } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
+import { chime } from './chime.js';
+import { passCard, showCard } from './share.js';
 
 header();
 const page = $('#page');
@@ -71,6 +73,7 @@ async function boot() {
         : `<h2>${persona}</h2><p>${blurb} AniList hasn't calculated stats for this profile yet.</p>`}
         <p style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px">
           <a class="btn ghost" href="${user.siteUrl}" target="_blank" rel="noopener">Open AniList profile</a>
+          <button class="btn ghost" id="card">Share my pass</button>
           <button class="btn ghost" id="logout">Disconnect</button>
         </p>
       </div>
@@ -101,6 +104,14 @@ async function boot() {
     </section>`;
 
   $('#logout').onclick = () => { logout(); location.reload(); };
+  const INK = ['#f39700', '#e60012', '#00a7db', '#00a650', '#9b7cb6', '#00ada9', '#bb641d', '#d7c447'];
+  $('#card').onclick = () => showCard(() => passCard({
+    name: user.name, avatar: user.avatar.large, color: pc, since: new Date(d.User.createdAt * 1000).getFullYear(),
+    tier: rank.tier, points: rank.points, next: rank.next, pct: rank.pct, persona,
+    stats: [[String(s.count), 'titles'], [s.episodesWatched.toLocaleString(), 'episodes'], [(s.minutesWatched / 1440).toFixed(1), 'days riding'], [s.meanScore ? String(Math.round(s.meanScore)) : '–', 'mean score']],
+    stamps: [rank.stamps.filter(x => x.got).length, rank.stamps.length],
+    stampList: rank.stamps.map((x, i) => ({ ...x, c: INK[i % INK.length] })),
+  }), `${user.name}-animetro-pass.png`);
   $('#pick').onclick = () => pick(user, planned);
   renderCurrent(user, d.current.mediaList);
 }
@@ -155,6 +166,7 @@ function renderCurrent(user, list) {
       span.textContent = progress;
       b.closest('.journey').querySelector('.bar i').style.width = `${total ? Math.min(100, (progress / total) * 100) : 0}%`;
       if (total && progress >= total) b.remove();
+      chime(total && progress >= total ? 'done' : 'tick');
       toast(total && progress >= total ? 'Completed. End of the line!' : `Episode ${progress} logged`);
     } catch (err) { toast(err.message); }
   });

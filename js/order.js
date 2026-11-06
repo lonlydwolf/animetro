@@ -72,13 +72,44 @@ export function classify(rootId, { media, want, expanded }, { adult = false } = 
   const stops = [], transfers = [];
   for (const m of all) {
     const rel = inbound.get(m.id);
-    if (chain.has(m.id) && MAIN_FORMATS.has(m.format)) m.role = 'main';
+    // a format AniList hasn't filled in yet (upcoming sequels) still counts as main story
+    if (chain.has(m.id) && (MAIN_FORMATS.has(m.format) || !m.format)) m.role = 'main';
     else if (rel.has('SUMMARY') || rel.has('COMPILATION')) m.role = 'recap';
     else if (want.get(m.id) || chain.has(m.id)) m.role = 'side';
     else m.role = rel.has('ALTERNATIVE') ? 'Alternate version' : 'Spin-off';
     (ROLE[m.role] ? stops : transfers).push(m);
   }
   return { stops, transfers, anchor };
+}
+
+// ---- train services: which stops most people skip ---------------------------
+// Express = the main story. Rapid = the main story plus the extras most fans watch. Local = every stop.
+// AniList has no "canon" flag, so we read the crowd: popularity is how many users have an entry on their
+// list, and a side story only a few % of the main show's audience bothered with is usually skippable.
+const REACH = .25; // a side stop on a quarter of the main show's lists still rides the Rapid
+// months: newer entries haven't collected list adds yet, so popularity can't judge them. Kept short because real
+// story movies get added fast (Chainsaw Man's Reze movie: 250k lists within a year; the JJK compilation: 2%)
+const FRESH = 6;
+export function service(m, anchor, now = new Date()) {
+  const reach = anchor?.popularity ? Math.min(1, (m.popularity || 0) / anchor.popularity) : 0;
+  const pct = Math.round(reach * 100);
+  const s = m.startDate || {};
+  const fresh = s.year && (now.getFullYear() * 12 + now.getMonth()) - (s.year * 12 + (s.month || 1) - 1) < FRESH;
+  if (m.role === 'main') {
+    // theatrical compilations of TV seasons are often linked as sequels; real story movies get watched,
+    // compilations don't (JJK 0: 45% of fans, the JJK recap films: 2-3%)
+    if (m.format !== 'TV' && m.format !== 'TV_SHORT' && m.format && m.status !== 'NOT_YET_RELEASED' && !fresh && reach < .1)
+      return { level: 'local', why: `probably a compilation: on only ${pct}% of fans' lists` };
+    return { level: 'express' };
+  }
+  if (m.role === 'recap') return { level: 'local', why: 'recap of earlier episodes' };
+  // not out yet: hardly anyone has it on their list, so popularity says nothing
+  if (m.status === 'NOT_YET_RELEASED') return { level: 'rapid', why: 'not out yet' };
+  if (fresh && reach < REACH) return { level: 'rapid', why: 'new, too early to judge' };
+  if (m.tags?.some(t => t.name === 'Chibi')) return { level: 'local', why: 'chibi comedy short' };
+  if (m.duration && m.duration <= 15 && m.format !== 'TV') return { level: 'local', why: `${m.duration}-minute extra` };
+  if (reach >= REACH) return { level: 'rapid', why: `on ${pct}% of fans' lists` };
+  return { level: 'local', why: reach < .01 ? "on fewer than 1% of fans' lists" : `on only ${pct}% of fans' lists` };
 }
 
 const dateKey = m => {

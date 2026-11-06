@@ -5,9 +5,11 @@ export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;'
 export const qs = () => new URLSearchParams(location.search);
 
 const NAV = [
-  ['index.html', 'Search'],
+  ['search.html', 'Discover'],
   ['explore.html', 'Explore'],
   ['foryou.html', 'For you'],
+  ['map.html', 'My map'],
+  ['history.html', 'History'],
   ['departures.html', 'Departures'],
   ['gacha.html', 'Gacha'],
 ];
@@ -30,7 +32,7 @@ export function header() {
       <span class="roundel" aria-hidden="true">A</span><span class="brand-name">Animetro</span>
     </a>
     <nav>${NAV.map(([href, label]) => `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-    ${page === 'index.html' ? '' : '<div class="top-search"><input type="search" placeholder="Find a series…" aria-label="Find a series"></div>'}
+    ${page === 'search.html' ? '' : '<div class="top-search"><input type="search" placeholder="Find a series…" aria-label="Find a series"></div>'}
     <div class="top-end">
       <button class="adult-pill" aria-pressed="${prefs.adult()}" title="18+ titles are ${prefs.adult() ? 'shown' : 'hidden'}. Click to change.">18+</button>
       <a class="pass-link" href="pass.html"${page === 'pass.html' ? ' aria-current="page"' : ''}><span class="pass-avatar"></span><span class="pass-name">My pass</span></a>

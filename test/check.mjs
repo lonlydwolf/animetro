@@ -4,10 +4,14 @@ globalThis.location = { hash: '', pathname: '/', search: '', href: 'http://local
 const mem = () => { const m = new Map(); return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i], get length() { return m.size; } }; };
 globalThis.sessionStorage = mem(); globalThis.localStorage = mem();
 const { rankSearch, gql } = await import('../js/api.js');
-const { crawl, classify, storyOrder, byDate } = await import('../js/order.js');
+const { crawl, classify, storyOrder, byDate, service } = await import('../js/order.js');
 const { ride, taste, match, TIERS } = await import('../js/score.js');
 const { searchTerm, siteLinks, ANIME_SITES, HENTAI_SITES } = await import('../js/streams.js');
 const { plan } = await import('../js/simkl.js');
+const { fit, remaining } = await import('../js/fit.js');
+const { finishOdds } = await import('../js/odds.js');
+const { franchises, districts, snake } = await import('../js/map.js');
+const { episodesIn, describe, streak } = await import('../js/journal.js');
 
 // ---- 5-minute cache: same query twice = one request; a mutation clears it ----
 let calls = 0;
@@ -137,5 +141,105 @@ assert.deepEqual(p.ratings, [{ ids: { anilist: 5, mal: 1005 }, rating: 8 }]);
 assert.deepEqual(p.changes.map(c => c.media.id), [1, 2, 3, 5]);
 assert.equal(p.episodes, 12 + 2);
 assert.equal(plan([ent(9, 'CURRENT', 0)], []).list[0].to, 'watching'); // in AniList with no progress yet
+
+// ---- home: what's left, and "got some time?" ----
+const show = (id, extra) => ({ id, format: 'TV', status: 'FINISHED', episodes: 12, duration: 24, averageScore: 70, ...extra });
+const airing = show(2, { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6 } }); // 5 episodes out
+assert.deepEqual(remaining({ progress: 11, media: show(1) }), { out: 12, left: 1, airing: false, last: true, minutes: 24 });
+assert.equal(remaining({ progress: 5, media: airing }).left, 0);           // caught up with an airing show
+assert.equal(remaining({ progress: 3, media: airing }).last, false);       // airing shows have no "last episode"
+const riding = [{ progress: 2, media: show(1) }, { progress: 10, media: show(3) }, { progress: 3, media: airing }];
+const plans = [{ progress: 0, media: show(4, { averageScore: 90 }) }, { progress: 0, media: show(5, { format: 'MOVIE', episodes: 1, duration: 110 }) },
+  { progress: 0, media: show(6, { averageScore: 80 }) }, { progress: 0, media: show(7, { averageScore: 75 }) }];
+let f = fit(60, riding, plans);
+assert.deepEqual(f.picks.map(x => [x.media.id, x.from, x.to]), [[3, 11, 12]]);  // closest to finishing goes first
+assert(f.picks[0].finishes);
+f = fit(120, riding, plans);
+assert.deepEqual(f.picks.map(x => [x.media.id, x.eps]), [[3, 2], [2, 2], [1, 1]]); // then the airing show's 2 ready eps, then 1 more
+assert.equal(f.used, 120);
+f = fit(2000, riding, plans);
+assert.equal(f.picks.filter(x => x.fresh).length, 2);                         // at most two new starts
+assert(!f.picks.some(x => x.media.id === 2 && x.finishes));                    // can't "finish" a show still airing
+assert.equal(fit(20, riding, plans).picks.length, 0);                          // nothing fits in 20 minutes
+assert.deepEqual(fit(110, [], [{ progress: 0, media: show(5, { format: 'MOVIE', episodes: 1, duration: 110 }) }]).picks.map(x => x.eps), [1]);
+
+// ---- will I finish it? ----
+const h = (status, episodes, genres, format = 'TV') => ({ status, media: { episodes, genres, format } });
+const hist = [
+  ...Array.from({ length: 20 }, () => h('COMPLETED', 12, ['Comedy'])),      // finishes short comedies
+  ...Array.from({ length: 6 }, () => h('DROPPED', 100, ['Action'])),        // drops long action shows
+  ...Array.from({ length: 2 }, () => h('COMPLETED', 100, ['Action'])),
+];
+const short = finishOdds(hist, { episodes: 12, genres: ['Comedy'], format: 'TV' });
+const long = finishOdds(hist, { episodes: 120, genres: ['Action'], format: 'TV' });
+assert(short.pct > short.base && long.pct < long.base, `${short.pct} ${long.pct} ${short.base}`);
+assert(long.reasons.some(r => /You leave 75% of shows over 52 episodes unfinished/.test(r)), long.reasons.join(' | '));
+// quiet drops: a finished show left on Watching for months counts as given up; a fresh one is undecided
+const { outcome } = await import('../js/odds.js');
+const NOW = 2e9, old = NOW - 200 * 86400, recent = NOW - 86400;
+assert.equal(outcome({ status: 'CURRENT', updatedAt: old, media: { status: 'FINISHED' } }, NOW), 0);
+assert.equal(outcome({ status: 'CURRENT', updatedAt: recent, media: { status: 'FINISHED' } }, NOW), null);
+assert.equal(outcome({ status: 'CURRENT', updatedAt: old, media: { status: 'RELEASING' } }, NOW), null); // waiting on new episodes
+assert.equal(outcome({ status: 'PAUSED', updatedAt: old, media: {} }, NOW), 0);
+assert.equal(outcome({ status: 'PAUSED', updatedAt: recent, media: {} }, NOW), .5);
+assert.equal(finishOdds(hist.slice(0, 5), { episodes: 12 }), null);       // too little history: say nothing
+const mid = finishOdds(hist, { episodes: 12, genres: ['Mecha'], format: 'TV' }); // unknown genre: no genre vote
+assert(mid.pct >= 0 && mid.pct <= 100);
+
+// ---- my metro map ----
+const md = (id, year, rel = {}, extra = {}) => ({ id, type: 'ANIME', format: 'TV', status: 'FINISHED', popularity: id, startDate: { year },
+  studios: { nodes: [{ name: 'Studio A', isAnimationStudio: true }] }, title: { romaji: 'S' + id },
+  relations: { edges: Object.entries(rel).flatMap(([t, ids]) => ids.map(n => ({ relationType: t, node: { id: n, type: 'ANIME', format: 'TV', status: n === 99 ? 'NOT_YET_RELEASED' : 'FINISHED', startDate: { year: 2030 }, title: { romaji: 'S' + n } } }))) }, ...extra });
+const ml = franchises([
+  { status: 'COMPLETED', progress: 12, media: md(1, 2010, { SEQUEL: [2] }) },
+  { status: 'CURRENT', progress: 3, media: md(2, 2012, { PREQUEL: [1], SEQUEL: [3] }) },   // 3 is not on the list: unridden stop
+  { status: 'PLANNING', progress: 0, media: md(4, 2015, { SPIN_OFF: [1] }) },             // planning-only, and spin-offs don't join lines
+  { status: 'COMPLETED', progress: 1, media: md(5, 2020, { SEQUEL: [99] }, { studios: { nodes: [{ name: 'Aniplex', isAnimationStudio: false }, { name: 'Studio A', isAnimationStudio: true }] } }) }, // 99 = not out yet
+]);
+assert.equal(ml.length, 2);                                                       // franchise 4 was never ridden: no line
+assert.deepEqual(ml[0].stations.map(s => [s.id, s.state]), [[1, 'done'], [2, 'here'], [3, 'unridden']]);
+assert(ml[0].riding && !ml[0].complete);
+assert.deepEqual(ml[1].stations.map(s => s.state), ['done', 'soon']);
+assert(ml[1].complete);                                                            // an unreleased stop doesn't count against you
+assert.equal(districts(ml)[0].name, 'Studio A');                                   // two lines from one studio = a district
+const sn = snake(10, 300, { gap: 64, pad: 34 });                                   // 4 stations fit per row
+assert.equal(sn.per, 4);
+assert.deepEqual(sn.pts.slice(3, 6).map(p => [p.x, p.row]), [[226, 0], [226, 1], [162, 1]]); // U-turn, then right to left
+assert.equal(sn.pts.at(-1).row, 2);
+
+// ---- Express / Rapid / Local ----
+const anchorShow = { popularity: 740000 };
+const stop = (role, popularity, extra = {}) => ({ role, popularity, format: 'MOVIE', duration: 100, ...extra });
+assert.equal(service(stop('main', 400000), anchorShow).level, 'express');                    // main story rides Express
+assert.equal(service(stop('main', 20000), anchorShow).level, 'local');                      // a "sequel" movie almost nobody watched: a compilation
+assert.equal(service(stop('main', 20000, { format: 'TV' }), anchorShow).level, 'express');  // a TV season is never demoted
+assert.deepEqual(service(stop('side', 60000), anchorShow), { level: 'local', why: "on only 8% of fans' lists" }); // a Naruto movie
+assert.equal(service(stop('side', 300000), anchorShow).level, 'rapid');                    // an extra most fans watch
+assert.equal(service(stop('side', 400000, { duration: 12, format: 'SPECIAL' }), anchorShow).why, '12-minute extra');
+assert.equal(service(stop('side', 400000, { tags: [{ name: 'Chibi' }] }), anchorShow).level, 'local');
+assert.equal(service(stop('recap', 400000), anchorShow).level, 'local');
+assert.equal(service(stop('side', 100), anchorShow).why, "on fewer than 1% of fans' lists");
+assert.equal(service(stop('side', 2000, { status: 'NOT_YET_RELEASED' }), anchorShow).level, 'rapid'); // too early to judge
+const NOW_D = new Date(2026, 10, 6);
+assert.equal(service(stop('main', 20000, { startDate: { year: 2026, month: 8 } }), anchorShow, NOW_D).level, 'express'); // new movie, few adds yet
+assert.equal(service(stop('side', 20000, { startDate: { year: 2026, month: 8 } }), anchorShow, NOW_D).why, 'new, too early to judge');
+assert.equal(service(stop('main', 20000, { startDate: { year: 2025, month: 11 } }), anchorShow, NOW_D).level, 'local'); // a year out and still unwatched
+assert.equal(service(stop('main', 20000, { startDate: { year: 2019, month: 3 } }), anchorShow, NOW_D).level, 'local'); // old and unwatched: compilation
+// an upcoming sequel AniList hasn't given a format yet is still main story
+const upcoming = { media: new Map([[1, { ...m(1, 'TV', 2020, { SEQUEL: [2] }), popularity: 9 }], [2, { ...m(2, null, 2027, { PREQUEL: [1] }), status: 'NOT_YET_RELEASED' }]]), want: new Map([[1, true], [2, true]]), expanded: new Set([1, 2]) };
+assert.equal(classify(1, upcoming).stops.find(s => s.id === 2).role, 'main');
+
+// ---- watch history ----
+assert.equal(episodesIn('1 - 10'), 10);
+assert.equal(episodesIn('4'), 1);
+assert.equal(episodesIn(null), 0);
+assert.deepEqual(describe({ status: 'watched episode', progress: '1 - 10', media: { duration: 24 } }), { kind: 'watched', verb: 'Watched episodes 1–10 of', eps: 10, minutes: 240 });
+assert.equal(describe({ status: 'completed', media: {} }).kind, 'completed');
+assert.equal(describe({ status: 'plans to watch', media: {} }).verb, 'Planned to watch');
+assert.equal(describe({ status: 'rewatched episode', progress: '3', media: { format: 'MOVIE' } }).minutes, 100);
+assert.equal(streak(['2026-11-04', '2026-11-05', '2026-11-06'], '2026-11-06'), 3);
+assert.equal(streak(['2026-11-04', '2026-11-05'], '2026-11-06'), 2);      // haven't watched yet today: streak still alive
+assert.equal(streak(['2026-11-01', '2026-11-05'], '2026-11-06'), 1);
+assert.equal(streak([], '2026-11-06'), 0);
 
 console.log('all checks passed');
