@@ -1,6 +1,6 @@
 #!/bin/sh
 # Smoke test for the built app: launches it in self-test mode, which loads the home page, checks storage
-# and prints a JSON report, then quits. Fails unless the page rendered and storage works.
+# and prints a JSON report, then quits. Fails unless the home page finished loading and storage works.
 # Usage: ./macos/selftest.sh [path/to/Animetro.app]   (default: build/Animetro.app)
 set -e
 cd "$(dirname "$0")/.."
@@ -14,4 +14,4 @@ kill "$PID" 2>/dev/null || true
 REPORT=$(grep '^{' "$OUT" | tail -1)
 rm -f "$OUT"
 echo "self-test: ${REPORT:-no report}"
-echo "$REPORT" | grep -q '"header":true' && echo "$REPORT" | grep -q '"stored":true'
+echo "$REPORT" | grep -q '"ready":"ok"' && echo "$REPORT" | grep -q '"stored":true'

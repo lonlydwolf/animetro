@@ -160,4 +160,6 @@ function welcome() {
 }
 
 setInterval(() => document.querySelectorAll('[data-at]').forEach(el => (el.textContent = countdown(el.dataset.at - Date.now() / 1000))), 1000);
-boot().catch(e => fail(page, e));
+// data-ready tells the Mac app's self-test whether the page really loaded
+boot().then(() => (document.documentElement.dataset.ready = 'ok'))
+  .catch(e => { fail(page, e); document.documentElement.dataset.ready = 'error'; });

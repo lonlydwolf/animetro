@@ -99,13 +99,14 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
     guard selfTest else { return }
     // ANIMETRO_SELFTEST=1: check the page booted, storage works and AniList answers, print JSON, quit.
     let js = """
-      await new Promise(r => setTimeout(r, 4000));
+      // wait for the page to say it loaded (or failed), up to 15 seconds
+      for (let i = 0; i < 60 && !document.documentElement.dataset.ready; i++) await new Promise(r => setTimeout(r, 250));
       localStorage.setItem('animetro.selftest', '1');
       const stored = localStorage.getItem('animetro.selftest') === '1';
       localStorage.removeItem('animetro.selftest');
       const api = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
-      return JSON.stringify({ header: !!document.querySelector('header.top'), page: document.querySelector('main')?.innerText.slice(0, 60),
+        body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }), signal: AbortSignal.timeout(8000) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
+      return JSON.stringify({ ready: document.documentElement.dataset.ready || 'timeout', header: !!document.querySelector('header.top'), page: document.querySelector('main')?.innerText.slice(0, 60),
         stored, api, title: document.title, secure: isSecureContext, clipboard: !!navigator.clipboard,
         native: !!window.webkit?.messageHandlers?.animetro, web: '\(web.path)' });
       """
