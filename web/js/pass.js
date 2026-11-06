@@ -1,5 +1,5 @@
-import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected } from './api.js';
-import { header, $, esc, toast, fail, cover, tint, safeUrl } from './ui.js';
+import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
+import { header, $, esc, toast, fail, cover, tint, safeUrl, nsfw } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
@@ -40,7 +40,7 @@ async function boot() {
     User(id:$u){ createdAt statistics{anime{ count episodesWatched minutesWatched meanScore statuses{ status count }
       genres(limit:30,sort:COUNT_DESC){ genre count } formats{ format count } releaseYears{ releaseYear count } lengths{ length count }
       countries{ country count } studios(limit:1,sort:COUNT_DESC){ count } }} }
-    current: Page(perPage:12){ mediaList(userId:$u,type:ANIME,status:CURRENT,sort:UPDATED_TIME_DESC){ progress media{ id episodes title{english romaji} coverImage{medium color} nextAiringEpisode{episode timeUntilAiring} } } }
+    current: Page(perPage:12){ mediaList(userId:$u,type:ANIME,status:CURRENT,sort:UPDATED_TIME_DESC){ progress media{ id episodes isAdult title{english romaji} coverImage{medium color} nextAiringEpisode{episode timeUntilAiring} } } }
   }`, { u: user.id });
 
   const s = d.User.statistics.anime;
@@ -113,7 +113,7 @@ async function boot() {
     stampList: rank.stamps.map((x, i) => ({ ...x, c: INK[i % INK.length] })),
   }), `${user.name}-animetro-pass.png`);
   $('#pick').onclick = () => pick(user, planned);
-  renderCurrent(user, d.current.mediaList);
+  renderCurrent(user, d.current.mediaList.filter(x => !x.media.isAdult || prefs.adult())); // 18+ hidden unless switched on
 }
 
 function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
@@ -149,7 +149,7 @@ function renderCurrent(user, list) {
     // total = episodes out so far (for the bar); only a known final count can complete the show
     const total = m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : 0), final = m.episodes || 0;
     return `
-      <div class="journey" style="--c:${tint(m, 'var(--platform)')}">
+      <div class="journey${nsfw(m)}" style="--c:${tint(m, 'var(--platform)')}">
         <a href="line.html?id=${m.id}"><img src="${cover(m, 'medium')}" alt=""></a>
         <div><a href="anime.html?id=${m.id}" style="text-decoration:none"><b>${esc(title(m))}</b></a>
           <div class="bar"><i style="width:${total ? Math.min(100, (progress / total) * 100) : 0}%"></i></div>
@@ -179,9 +179,10 @@ async function pick(user, total) {
     // Random page of 50, then a random show from it. Works even when AniList hasn't counted the list yet.
     const d = await gql(`query($u:Int,$p:Int){ Page(page:$p,perPage:50){ mediaList(userId:$u,type:ANIME,status:PLANNING){ media{ ${CARD} } } } }`,
       { u: user.id, p: 1 + Math.floor(Math.random() * Math.max(1, Math.ceil(total / 50))) });
-    const all = d.Page.mediaList;
+    const all = d.Page.mediaList.filter(x => !x.media.isAdult || prefs.adult());
     const m = all[Math.floor(Math.random() * all.length)]?.media;
     if (!m) throw new Error('Your Planning list is empty. Add a few shows first.');
+    $('#tonight').className = `tonight${nsfw(m)}`;
     $('#tonight').innerHTML = `
       <img src="${cover(m)}" alt="">
       <div><b>${esc(title(m))}</b><p class="hint" style="margin:0 0 12px">${[m.seasonYear, m.episodes && `${m.episodes} episodes`, m.averageScore && `${m.averageScore}%`].filter(Boolean).join(', ')}. ${m.genres.slice(0, 3).join(', ')}.</p>

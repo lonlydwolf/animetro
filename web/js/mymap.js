@@ -1,4 +1,4 @@
-import { gql, me, title } from './api.js';
+import { gql, me, title, prefs } from './api.js';
 import { header, $, esc, fail } from './ui.js';
 import { franchises, districts, lineSvg, marker, STATE, PALETTE } from './map.js';
 
@@ -15,9 +15,13 @@ async function boot() {
     return;
   }
   const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress media{
-    id title{english romaji} format status episodes popularity startDate{year month day} studios(isMain:true){ nodes{ name isAnimationStudio } }
-    relations{ edges{ relationType(version:2) node{ id type format status popularity title{english romaji} startDate{year month day} } } } } } } } }`, { u: user.id });
-  const entries = [...new Map(d.MediaListCollection.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()];
+    id title{english romaji} format status episodes popularity isAdult startDate{year month day} studios(isMain:true){ nodes{ name isAnimationStudio } }
+    relations{ edges{ relationType(version:2) node{ id type format status popularity isAdult title{english romaji} startDate{year month day} } } } } } } } }`, { u: user.id });
+  // 18+ titles (and 18+ neighbouring stops) stay off the map unless 18+ is on
+  const keep = m => !m.isAdult || prefs.adult();
+  const entries = [...new Map(d.MediaListCollection.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()]
+    .filter(e => keep(e.media))
+    .map(e => ({ ...e, media: { ...e.media, relations: { edges: (e.media.relations?.edges || []).filter(x => keep(x.node)) } } }));
   lines = franchises(entries);
   lines.forEach((l, i) => (l.color = PALETTE[i % PALETTE.length]));
   render(user);

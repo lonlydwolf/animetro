@@ -1,14 +1,15 @@
-import { gql, me, title, saveEntries } from './api.js';
-import { header, $, esc, countdown, minutes, toast, fail, cover, tint } from './ui.js';
+import { gql, me, title, saveEntries, prefs } from './api.js';
+import { header, $, esc, countdown, minutes, toast, fail, cover, tint, nsfw } from './ui.js';
 import { remaining, fit, finishes } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 
 header();
 const page = $('#page');
-const M = 'id title{english romaji} episodes duration format status averageScore coverImage{large color} nextAiringEpisode{episode airingAt}';
+const M = 'id title{english romaji} episodes duration format status averageScore isAdult coverImage{large color} nextAiringEpisode{episode airingAt}';
 let user, riding = [], planning = [], budget = 0;
 
-const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()]; // custom lists repeat entries
+// custom lists repeat entries; 18+ titles stay hidden unless 18+ is on
+const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()].filter(e => !e.media.isAdult || prefs.adult());
 
 async function boot() {
   user = await me();
@@ -85,7 +86,7 @@ function ride({ e, r }) {
     : 'Every episode watched';
   const canPlus = user.canWrite && (r.left > 0 || (!r.airing && total && e.progress < total));
   return `
-    <div class="ride${r.last ? ' is-last' : ''}" style="--c:${tint(m, 'var(--platform)')}" data-id="${m.id}">
+    <div class="ride${r.last ? ' is-last' : ''}${nsfw(m)}" style="--c:${tint(m, 'var(--platform)')}" data-id="${m.id}">
       <a class="ride-cover" href="anime.html?id=${m.id}"><img src="${cover(m)}" alt="" loading="lazy"></a>
       <div class="ride-body">
         <a class="ride-title" href="line.html?id=${m.id}">${esc(title(m))}</a>
@@ -140,7 +141,7 @@ function showFit() {
   if (!picks.length) { el.innerHTML = `<p class="hint">Nothing fits in ${minutes(budget)}. Even one episode runs longer.</p>`; return; }
   el.innerHTML = `
     <ol class="fit-list">${picks.map(p => `
-      <li style="--c:${tint(p.media, 'var(--platform)')}">
+      <li class="${nsfw(p.media)}" style="--c:${tint(p.media, 'var(--platform)')}">
         <img src="${cover(p.media)}" alt="" loading="lazy">
         <div><a href="anime.html?id=${p.media.id}"><b>${esc(title(p.media))}</b></a>
           <small>${p.media.format === 'MOVIE' ? 'The movie' : p.eps === 1 ? `Episode ${p.from}` : `Episodes ${p.from} to ${p.to}`}${p.finishes ? ', and that finishes it' : p.fresh ? ', a new start' : ''}</small></div>
