@@ -1,5 +1,9 @@
 # Animetro
 
+[![CI](https://github.com/lonlydwolf/animetro/actions/workflows/ci.yml/badge.svg)](https://github.com/lonlydwolf/animetro/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/lonlydwolf/animetro)](https://github.com/lonlydwolf/animetro/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Type an anime name in English and get its whole franchise (seasons, movies, OVAs, recaps) laid out as a train line in watch order, with live data from the [AniList API](https://docs.anilist.co). A macOS app and a plain web app, from the same files.
 
 > [!IMPORTANT]
@@ -40,6 +44,28 @@ Run the tests (Node 20 or later, no install needed):
 ```sh
 npm test
 ```
+
+## Project layout
+
+```
+web/            the app: one HTML page per screen, css/, js/ (ES modules), img/
+  js/           pure logic (order, score, fit, odds, map, journal, streams, simkl) is kept
+                apart from the page scripts so it can be tested without a browser
+macos/          the Mac app: Animetro.swift, Info.plist, icon, build.sh, dev.sh, selftest.sh
+tests/          node:test unit tests per module, plus structure checks
+.github/        CI, release workflow, Dependabot, issue and pull request templates
+```
+
+| Command | What it does |
+|---|---|
+| `npm start` | Serve `web/` at http://localhost:5180 |
+| `npm test` | Run all tests |
+| `npm run lint` | ESLint (`npm install` first; dev tools only) |
+| `npm run build:mac` | Build `build/Animetro.app` |
+| `npm run dev:mac` | Run the Mac app against `web/` (edit, then ⌘R) |
+| `./macos/selftest.sh` | Launch the built app and check it renders |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, [SECURITY.md](SECURITY.md) for reporting problems and what's stored, and [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ## What's inside
 
@@ -108,7 +134,7 @@ AniList currently allows 30 requests a minute. Animetro batches queries, reuses 
 
 ## Releases
 
-Pushing a tag like `v1.2.0` runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it runs the checks, builds the universal app with that version, zips it and publishes a GitHub release. Every push and pull request runs the checks in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+Every push and pull request runs [CI](.github/workflows/ci.yml): lint, tests, a gitleaks secret scan over the whole history, and a macOS job that builds the app and launches it. Pushing a tag like `v1.2.0` runs the [release workflow](.github/workflows/release.yml): the full CI first, then it builds the universal app with that version, smoke-tests it, zips it and publishes a GitHub release with that version's CHANGELOG section as the notes.
 
 ## License
 
