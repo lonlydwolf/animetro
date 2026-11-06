@@ -81,11 +81,11 @@ const cache = {
 // adult titles, and Animetro's own 18+ switch should decide that instead.
 const PERSONAL = /\b(Viewer|mutation|mediaList|MediaListCollection|User)\b/;
 
-export async function gql(query, variables = {}, tries = 3) {
+export async function gql(query, variables = {}, { fresh = false, tries = 3 } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
   const key = digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
-  const hit = !mutation && cache.get(key);
+  const hit = !mutation && !fresh && cache.get(key);
   if (hit) return hit;
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
@@ -102,7 +102,7 @@ export async function gql(query, variables = {}, tries = 3) {
     const wait = Math.min(+res.headers.get('Retry-After') || 15, 65);
     dispatchEvent(new CustomEvent('ratelimit', { detail: wait }));
     await sleep(wait * 1000);
-    return gql(query, variables, tries - 1);
+    return gql(query, variables, { fresh, tries: tries - 1 });
   }
   const json = await res.json().catch(() => ({}));
   if (json.errors?.some(e => e.status === 401 || /invalid token/i.test(e.message))) {

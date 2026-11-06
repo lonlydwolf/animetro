@@ -30,6 +30,16 @@ node test/check.mjs
 | **Gacha** (`gacha.html`) | A capsule machine that pulls random anime. Rarity rewards hidden gems: **SSR** means a high score but low popularity. Can pull only shows that are new to you. |
 | **My pass** (`pass.html`) | Your stats as a transit card, an "anime personality", a **rider rank** (ride points earn train tiers from Platform Ticket to Galaxy Express, with a progress bar to the next one), 16 **station stamps** to collect, a random pick from your Planning list, and +1 buttons for shows you're watching. |
 
+### Backup sync (off by default)
+
+My pass › **Backup sync** turns it on. It copies your AniList list to other trackers as a backup next to MAL-Sync. It only runs when you press the button, and it shows what would change before sending anything. It never changes AniList and never removes anything from the other tracker.
+
+- **Simkl** (free): create an app at https://simkl.com/settings/developer (type *TV, devices & command line*), paste its client ID on the Sync page, then approve the short code Simkl shows. Statuses, episode progress and scores (if you score) are matched by AniList ID. Simkl allows one write a second, so a first sync of ~600 titles takes about 15 seconds.
+- **MyAnimeList**: comes with the Mac app (MAL blocks web pages from its API).
+- **Bingers**: its API is a paid feature, so the Sync page explains the free route: Simkl's JSON backup, uploaded at https://bingers.app/import.
+
+Turning backup sync off forgets the Simkl connection and client ID.
+
 ### 18+ titles
 
 Hentai and other titles AniList marks as adult are hidden everywhere by default. The **18+** button in the header turns them on (you confirm you're 18 or older). Once it's on, you get the **18+ only** ticket and the **Hentai** genre in Explore and Gacha, adult tags, a **Last train** line on the home page, and 18+ results in search and watch-order maps. Covers of 18+ titles stay blurred until you hover over them; you can switch that off in the same dialog.
@@ -57,7 +67,7 @@ There are two ways to connect, both on the **My pass** page:
 
 ## What's stored
 
-Everything is fetched live from AniList. The browser keeps only your login token or username and client ID, and your 18+ and blur settings (`localStorage`), plus, for the current tab only (`sessionStorage`), a copy of your profile and AniList answers from the last 5 minutes, so going back and forth between pages doesn't re-ask AniList. Closing the tab clears that; **Disconnect** clears everything.
+Everything is fetched live from AniList. The browser keeps only your login token or username and client ID, your 18+ and blur settings, and, if you turn on backup sync, your Simkl client ID and login (`localStorage`), plus, for the current tab only (`sessionStorage`), a copy of your profile and AniList answers from the last 5 minutes, so going back and forth between pages doesn't re-ask AniList. Closing the tab clears that; **Disconnect** clears everything.
 
 AniList currently allows 30 requests a minute. Animetro batches queries, reuses answers from the last 5 minutes, and reads AniList's "requests left" counter: when it gets low, it pauses until the minute resets instead of getting refused. If you ever see "Pausing…", that's why.
 

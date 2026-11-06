@@ -538,6 +538,31 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .stamp small { color: var(--dim); font-size: .78rem; line-height: 1.35; }
 .stamp:not(.got) b { color: var(--dim); }
 
+/* ---------- backup sync ---------- */
+.transfers { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 18px; margin-top: 36px; align-items: start; }
+.transfer { background: var(--tunnel); border-radius: 18px; padding: 22px; display: grid; gap: 12px; }
+.transfer.off { opacity: .65; }
+.transfer h3 { display: flex; align-items: center; gap: 10px; }
+.transfer .hint { margin: 0; }
+.steps { margin: 0; padding-left: 20px; color: var(--dim); display: grid; gap: 6px; font-size: .9rem; }
+.steps a, .transfer .hint a { color: var(--ink); }
+.inline-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.inline-form input { flex: 1; min-width: 160px; padding: 10px 14px; border-radius: 99px; border: 1px solid var(--rail); background: var(--night); }
+.row-btns { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pin { background: var(--night); border-radius: 14px; padding: 16px; display: grid; gap: 10px; justify-items: start; }
+.pin-code { font: 400 2rem/1 var(--dot); letter-spacing: .12em; color: var(--led); text-shadow: 0 0 12px #ffa53c66; }
+.sync-sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sync-sum div { background: var(--night); border-radius: 12px; padding: 10px 12px; }
+.sync-sum b { display: block; font: 400 1.3rem var(--display); }
+.sync-sum span { color: var(--dim); font-size: .78rem; }
+.sync-table { max-height: 320px; overflow: auto; border-radius: 12px; background: var(--night); padding: 4px 0; }
+.sync-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 5.5em; gap: 12px; padding: 6px 12px; font-size: .86rem; border-bottom: 1px solid var(--tunnel); }
+.sync-row a { color: var(--ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-row a:hover { color: var(--platform); }
+.sync-row span { color: var(--dim); white-space: nowrap; }
+.sync-row .new { font-style: normal; color: var(--platform); font-weight: 700; }
+.done-note { color: var(--ink); font-weight: 700; margin: 0; }
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .top { position: relative; flex-wrap: wrap; gap: 10px 14px; padding: 10px 16px; }
@@ -547,7 +572,8 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
   .top-search + .top-end { margin-left: auto; }
   .rank-card { grid-template-columns: 1fr; gap: 14px; }
   main { padding: 0 16px 60px; }
-  .line-layout, .anime-body, .explore, .gacha, .pass-grid, .connect { grid-template-columns: 1fr; gap: 28px; }
+  .line-layout, .anime-body, .explore, .gacha, .pass-grid, .connect, .transfers { grid-template-columns: 1fr; gap: 28px; }
+  .sync-sum { grid-template-columns: repeat(2, 1fr); }
   .planner, .filters { position: static; max-height: none; }
   .filters-toggle { display: inline-flex; }
   .filters:not(.open) { display: none; }

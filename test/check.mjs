@@ -7,6 +7,7 @@ const { rankSearch, gql } = await import('../js/api.js');
 const { crawl, classify, storyOrder, byDate } = await import('../js/order.js');
 const { ride, taste, match, TIERS } = await import('../js/score.js');
 const { searchTerm, siteLinks, ANIME_SITES, HENTAI_SITES } = await import('../js/streams.js');
+const { plan } = await import('../js/simkl.js');
 
 // ---- 5-minute cache: same query twice = one request; a mutation clears it ----
 let calls = 0;
@@ -113,5 +114,28 @@ assert.equal(siteLinks({ id: 154587, title: { romaji: 'Sousou no Frieren' } }).f
 const { existsSync } = await import('node:fs');
 for (const x of [...sfw, ...siteLinks({ title: { romaji: 'X' }, isAdult: true })]) assert(existsSync(new URL('../' + x.icon, import.meta.url)), x.icon);
 assert.equal(siteLinks({ title: { romaji: 'X' }, isAdult: true }).length, HENTAI_SITES.length); // 18+ titles get the hentai list
+
+// ---- Simkl backup: only send what's different, never remove ----
+const ent = (id, status, progress, extra = {}) => ({ status, progress, score: 0, media: { id, idMal: id + 1000, episodes: 12, title: { romaji: 'T' + id } }, ...extra });
+const row = (anilist, status, watched, extra = {}) => ({ status, watched_episodes_count: watched, anime: { ids: { simkl: anilist * 7, anilist: String(anilist) } }, ...extra });
+const p = plan([
+  ent(1, 'COMPLETED', 12),            // new on Simkl, finished -> whole show completed
+  ent(2, 'CURRENT', 5),               // Simkl has 3 -> episodes 4 and 5
+  ent(3, 'PLANNING', 0),              // Simkl says watching -> move to plan to watch
+  ent(4, 'COMPLETED', 12),            // already completed -> nothing
+  ent(5, 'PAUSED', 2, { score: 8.4 }), // same status/episodes, new rating -> rating only
+  ent(6, 'CURRENT', 1),               // matched by MAL id only
+  ent(7, 'REPEATING', 3),             // rewatching counts as completed
+], [row(2, 'watching', 3), row(3, 'watching', 0), row(4, 'completed', 12), row(5, 'hold', 2, { user_rating: 6 }),
+  { status: 'watching', watched_episodes_count: 1, anime: { ids: { mal: '1006' } } }, row(7, 'completed', 12)]);
+assert.deepEqual(p.history, [
+  { ids: { anilist: 1, mal: 1001 }, status: 'completed' },
+  { ids: { anilist: 2, mal: 1002 }, status: 'watching', episodes: [{ number: 4 }, { number: 5 }] },
+]);
+assert.deepEqual(p.list, [{ ids: { anilist: 3, mal: 1003 }, to: 'plantowatch' }]);
+assert.deepEqual(p.ratings, [{ ids: { anilist: 5, mal: 1005 }, rating: 8 }]);
+assert.deepEqual(p.changes.map(c => c.media.id), [1, 2, 3, 5]);
+assert.equal(p.episodes, 12 + 2);
+assert.equal(plan([ent(9, 'CURRENT', 0)], []).list[0].to, 'watching'); // in AniList with no progress yet
 
 console.log('all checks passed');
