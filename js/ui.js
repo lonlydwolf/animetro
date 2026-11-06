@@ -1,0 +1,141 @@
+import { gql, me, title, listStatus, rankSearch, CARD } from './api.js';
+
+export const $ = (s, el = document) => el.querySelector(s);
+export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export const qs = () => new URLSearchParams(location.search);
+
+const NAV = [
+  ['index.html', 'Search'],
+  ['explore.html', 'Explore'],
+  ['departures.html', 'Departures'],
+  ['gacha.html', 'Gacha'],
+];
+
+export const STATUS = {
+  CURRENT: 'Watching', PLANNING: 'Planning', COMPLETED: 'Completed',
+  DROPPED: 'Dropped', PAUSED: 'Paused', REPEATING: 'Rewatching',
+};
+export const FORMAT = {
+  TV: 'TV', TV_SHORT: 'TV short', MOVIE: 'Movie', SPECIAL: 'Special', OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music video',
+};
+
+// Header on every page: logo roundel, nav, quick search, and your pass.
+export function header() {
+  const page = location.pathname.split('/').pop() || 'index.html';
+  const el = document.createElement('header');
+  el.className = 'top';
+  el.innerHTML = `
+    <a class="brand" href="index.html" aria-label="Animetro home">
+      <span class="roundel" aria-hidden="true">A</span><span class="brand-name">Animetro</span>
+    </a>
+    <nav>${NAV.map(([href, label]) => `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+    ${page === 'index.html' ? '' : '<div class="top-search"><input type="search" placeholder="Find a series…" aria-label="Find a series"></div>'}
+    <a class="pass-link" href="pass.html"${page === 'pass.html' ? ' aria-current="page"' : ''}><span class="pass-avatar"></span><span class="pass-name">My pass</span></a>`;
+  document.body.prepend(el);
+  const input = $('.top-search input', el);
+  if (input) searchBox(input, m => (location.href = `line.html?id=${m.id}`));
+  me().then(u => {
+    if (!u) return;
+    $('.pass-avatar', el).style.backgroundImage = `url(${u.avatar.large})`;
+    $('.pass-avatar', el).classList.add('on');
+    $('.pass-name', el).textContent = u.name;
+  });
+  addEventListener('ratelimit', e => toast(`AniList asked us to slow down. Retrying in ${e.detail}s…`));
+}
+
+// Typeahead that searches English + romaji titles. Debounced: we only get ~30 requests a minute.
+export function searchBox(input, onPick) {
+  const box = document.createElement('div');
+  box.className = 'suggest';
+  box.setAttribute('role', 'listbox');
+  input.after(box);
+  input.setAttribute('autocomplete', 'off');
+  let timer, items = [], active = -1, seq = 0;
+
+  const render = () => {
+    box.innerHTML = items.map((m, i) => `
+      <div class="suggest-row${i === active ? ' active' : ''}" role="option" data-i="${i}">
+        <img src="${m.coverImage.medium}" alt="" loading="lazy">
+        <div><b>${esc(title(m))}</b><small>${esc([m.title.english && m.title.romaji !== m.title.english ? m.title.romaji : '', FORMAT[m.format], m.startDate.year].filter(Boolean).join(', '))}</small></div>
+        <a class="suggest-info" href="anime.html?id=${m.id}" title="Details">i</a>
+      </div>`).join('');
+    box.classList.toggle('open', items.length > 0);
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const s = input.value.trim();
+    if (s.length < 2) { items = []; return render(); }
+    timer = setTimeout(async () => {
+      const my = ++seq;
+      const d = await gql(`query($s:String){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:false){id popularity title{english romaji} format startDate{year} coverImage{medium}}}}`, { s }).catch(() => null);
+      if (my !== seq || !d) return;
+      items = rankSearch(d.Page.media, s).slice(0, 7); active = 0; render();
+    }, 350);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      render();
+    } else if (e.key === 'Enter' && items[active]) { e.preventDefault(); onPick(items[active]); }
+    else if (e.key === 'Escape') { items = []; render(); }
+  });
+  box.addEventListener('mousedown', e => {
+    if (e.target.closest('.suggest-info')) return;
+    const row = e.target.closest('.suggest-row');
+    if (row) { e.preventDefault(); onPick(items[row.dataset.i]); }
+  });
+  input.addEventListener('blur', () => setTimeout(() => box.classList.remove('open'), 150));
+  input.addEventListener('focus', () => items.length && box.classList.add('open'));
+}
+
+// Poster card used in grids. `entry` is the rider's list entry, if any.
+export function card(m, entry) {
+  const color = m.coverImage?.color || '#4b5684';
+  const meta = [FORMAT[m.format], m.seasonYear, m.episodes && m.format !== 'MOVIE' ? `${m.episodes} ep` : ''].filter(Boolean).join('  ');
+  return `
+    <a class="card" href="anime.html?id=${m.id}" style="--c:${color}">
+      <div class="poster">
+        <img src="${m.coverImage?.large}" alt="" loading="lazy">
+        ${m.averageScore ? `<span class="score">${m.averageScore}</span>` : ''}
+        ${entry ? `<span class="ribbon s-${entry.status}">${STATUS[entry.status]}</span>` : ''}
+      </div>
+      <b>${esc(title(m))}</b>
+      <small>${esc(meta)}</small>
+    </a>`;
+}
+
+export async function cards(el, media, { append = false } = {}) {
+  const list = await listStatus(media.map(m => m.id));
+  const html = media.map(m => card(m, list.get(m.id))).join('');
+  if (append) el.insertAdjacentHTML('beforeend', html); else el.innerHTML = html;
+}
+
+export function toast(msg) {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+export const minutes = min => {
+  if (!min) return '0m';
+  const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = Math.round(min % 60);
+  return [d && `${d}d`, h && `${h}h`, !d && m && `${m}m`].filter(Boolean).join(' ');
+};
+
+export function countdown(sec) {
+  if (sec <= 0) return 'now';
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${String(m).padStart(2, '0')}m`;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
+export const fail = (el, err) => {
+  el.innerHTML = `<p class="empty">${esc(err.message || err)}</p>`;
+};
+
+export { CARD };

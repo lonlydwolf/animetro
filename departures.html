@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Departures · Animetro</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main>
+    <div class="board-head">
+      <div>
+        <h1 style="font-size:clamp(1.8rem,4vw,2.8rem)">Departures</h1>
+        <p class="hint" style="margin-bottom:0">New episodes airing in Japan, shown in your local time.</p>
+      </div>
+      <div class="clock" id="clock" aria-label="Current time"></div>
+    </div>
+    <div class="days" id="days" role="group" aria-label="Day"></div>
+    <div class="board-tools" style="margin-top:14px">
+      <label><input type="checkbox" id="niche"> Include niche shows</label>
+      <label id="mine-wrap" hidden><input type="checkbox" id="mine"> Only shows on my list</label>
+      <span id="board-count"></span>
+    </div>
+    <div class="board">
+      <table>
+        <thead><tr><th>Time</th><th>Destination</th><th>Ep</th><th>Departs in</th><th>Status</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="5">Loading board…</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+  <script type="module" src="js/departures.js"></script>
+</body>
+</html>

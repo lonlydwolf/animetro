@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gacha · Animetro</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main>
+    <div class="gacha">
+      <div>
+        <div class="machine">
+          <div class="dome" id="dome"></div>
+          <div class="body">
+            <span class="machine-label">1 pull = 1 anime</span>
+            <button class="knob" id="knob" aria-label="Pull one"></button>
+            <span class="slot"></span>
+          </div>
+        </div>
+        <div class="gacha-controls">
+          <label>Genre<select id="genre"><option value="">Any genre</option></select></label>
+          <label>Era<select id="era">
+            <option value="">Any era</option><option value="0-2000">Classics (before 2000)</option>
+            <option value="2000-2010">2000s</option><option value="2010-2020">2010s</option><option value="2020-2100">2020s</option>
+          </select></label>
+          <label>Ticket class<select id="ticket"></select></label>
+          <div style="display:flex;gap:10px">
+            <button class="btn" id="one" style="flex:1">Pull ×1</button>
+            <button class="btn ghost" id="ten" style="flex:1">Pull ×10</button>
+          </div>
+          <div class="odds">
+            <span class="r-SSR"><i></i>SSR: scores 80%+ but few people have seen it</span>
+            <span class="r-SR"><i></i>SR: scores 78%+</span>
+            <span class="r-R"><i></i>R: scores 68%+</span>
+            <span class="r-N"><i></i>N: everything else</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h1 style="font-size:clamp(1.8rem,4vw,2.8rem)">Anime gacha</h1>
+        <p class="hint">Can't decide? Turn the knob. Every pull is a random show that at least 2,500 AniList users have watched or planned. Pulls aren't saved anywhere.</p>
+        <div id="pulls" class="pulls"></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="js/gacha.js"></script>
+</body>
+</html>

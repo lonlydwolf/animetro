@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Explore · Animetro</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main>
+    <div class="explore">
+      <form id="filters" class="filters" autocomplete="off">
+        <label>Title<input type="search" name="q" placeholder="Any title"></label>
+        <fieldset><legend>Genres (all must match)</legend><div id="genres" class="chips"></div></fieldset>
+        <label>Tags
+          <input type="text" id="tag-input" list="tag-list" placeholder="Type a tag, e.g. Time Loop">
+          <datalist id="tag-list"></datalist>
+        </label>
+        <div id="tags" class="chips"></div>
+        <fieldset><legend>Ticket class</legend>
+          <div id="tickets" class="chips"></div>
+          <span id="ticket-note" class="ticket-note"></span>
+        </fieldset>
+        <div class="two">
+          <label>Format<select name="format">
+            <option value="">Any</option><option value="TV">TV</option><option value="MOVIE">Movie</option>
+            <option value="ONA">ONA</option><option value="OVA">OVA</option><option value="SPECIAL">Special</option><option value="TV_SHORT">TV short</option>
+          </select></label>
+          <label>Status<select name="status">
+            <option value="">Any</option><option value="FINISHED">Finished</option><option value="RELEASING">Airing</option><option value="NOT_YET_RELEASED">Upcoming</option>
+          </select></label>
+          <label>Season<select name="season">
+            <option value="">Any</option><option value="WINTER">Winter</option><option value="SPRING">Spring</option><option value="SUMMER">Summer</option><option value="FALL">Fall</option>
+          </select></label>
+          <label>Year<input type="number" name="year" min="1940" max="2030" placeholder="Any"></label>
+        </div>
+        <label>Minimum score: <span id="score-val">any</span><input type="range" name="score" min="0" max="90" step="5" value="0"></label>
+        <label>Sort by<select name="sort">
+          <option value="POPULARITY_DESC">Most popular</option><option value="SCORE_DESC">Highest score</option>
+          <option value="TRENDING_DESC">Trending</option><option value="START_DATE_DESC">Newest</option>
+          <option value="FAVOURITES_DESC">Most favourited</option>
+        </select></label>
+        <button type="button" id="reset" class="btn ghost">Clear filters</button>
+      </form>
+
+      <div>
+        <div class="results-head">
+          <h1 style="font-size:clamp(1.6rem,3vw,2.2rem)">Explore</h1>
+          <button type="button" class="btn ghost filters-toggle" id="toggle">Filters</button>
+        </div>
+        <div id="results" class="grid"></div>
+        <div class="more"><button id="more" class="btn ghost" hidden>Load more</button></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="js/explore.js"></script>
+</body>
+</html>

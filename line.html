@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Watch order · Animetro</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main>
+    <div id="loading" class="loading">
+      <div class="train" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p>Mapping the line…</p>
+      <small id="found"></small>
+    </div>
+
+    <div id="map" hidden>
+      <section id="hero" class="line-hero bleed">
+        <h1 id="name"></h1>
+        <p id="years" class="years"></p>
+        <div id="summary" class="summary"></div>
+      </section>
+
+      <div class="line-layout">
+        <aside class="planner">
+          <div class="seg" role="group" aria-label="Order">
+            <button data-view="order" data-value="release">Release order</button>
+            <button data-view="order" data-value="story">Story order</button>
+          </div>
+          <p class="hint">Release order is how fans first saw it and is usually best for a first watch. Story order follows the timeline, so prequels come first.</p>
+          <div class="seg" role="group" aria-label="Stops">
+            <button data-view="stops" data-value="all">All stops</button>
+            <button data-view="stops" data-value="express">Express</button>
+          </div>
+          <p class="hint">Express keeps only the main story: TV seasons and the movies that continue it.</p>
+
+          <div id="progress" class="progress" hidden></div>
+
+          <label class="perday">
+            <span>Episodes a day: <b id="perday-val">3</b></span>
+            <input id="perday" type="range" min="1" max="24" value="3">
+          </label>
+          <p id="arrive" class="arrive"></p>
+
+          <button id="plan-all" class="btn" hidden></button>
+          <button id="share" class="btn ghost">Copy link to this line</button>
+          <p id="capped" class="hint" hidden>This franchise is huge. Showing the first 120 stops.</p>
+
+          <div id="transfers" hidden>
+            <h3>Transfers</h3>
+            <p class="hint">Spin-offs and alternate versions. Each is its own line.</p>
+            <ul id="transfer-list" class="transfer-list"></ul>
+          </div>
+        </aside>
+
+        <ol id="stops" class="line"></ol>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="js/line.js"></script>
+</body>
+</html>
