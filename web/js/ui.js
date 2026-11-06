@@ -110,10 +110,11 @@ export function searchBox(input, onPick) {
   };
   input.addEventListener('input', () => {
     clearTimeout(timer);
+    // every keystroke (clearing too) gets a new ticket, so a slower earlier answer can't land afterwards
+    const my = ++seq;
     const s = input.value.trim();
     if (s.length < 2) { items = []; return render(); }
     timer = setTimeout(async () => {
-      const my = ++seq;
       const d = await gql(`query($s:String,$a:Boolean){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:$a){id popularity isAdult title{english romaji} format startDate{year} coverImage{medium}}}}`, { s, a: adultArg() }).catch(() => null);
       if (my !== seq || !d) return;
       items = rankSearch(d.Page.media, s).slice(0, 7); active = 0; render();
