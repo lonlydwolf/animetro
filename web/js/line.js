@@ -1,5 +1,5 @@
 import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg, inApp } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw } from './ui.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw, cover, tint, safeUrl } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE, service } from './order.js';
 import { lineCard, showCard } from './share.js';
 
@@ -50,13 +50,13 @@ function render() {
     const meta = [FORMAT[m.format], m.season ? `${m.season[0] + m.season.slice(1).toLowerCase()} ${m.seasonYear}` : m.startDate.year,
       eps && m.format !== 'MOVIE' ? `${eps} × ${epLength(m)}m` : m.format === 'MOVIE' && m.duration ? `${m.duration} min` : ''].filter(Boolean);
     return `
-      <li class="stop role-${m.role}${done ? ' done' : ''}${i === hereIdx ? ' here' : ''}" style="--c:${m.coverImage.color || 'var(--line)'}">
+      <li class="stop role-${m.role}${done ? ' done' : ''}${i === hereIdx ? ' here' : ''}" style="--c:${tint(m, 'var(--line)')}">
         <span class="code" aria-hidden="true"><small>${letter}</small>${String(i + 1).padStart(2, '0')}</span>
         <span class="node" aria-hidden="true"></span>
         ${i === hereIdx ? '<span class="you">You are here</span>' : ''}
         <div class="stop-body">
           <a href="anime.html?id=${m.id}" class="stop-link${nsfw(m)}">
-            <img src="${m.coverImage.large}" alt="" loading="lazy">
+            <img src="${cover(m)}" alt="" loading="lazy">
             <span>
               <b>${esc(title(m))}</b>
               ${m.title.english && m.title.english !== m.title.romaji ? `<small class="romaji">${esc(m.title.romaji)}</small>` : ''}
@@ -104,7 +104,7 @@ function render() {
 
   $('#transfers').hidden = !data.transfers.length;
   $('#transfer-list').innerHTML = [...data.transfers].sort(byDate).map(m => `
-    <li><a href="line.html?id=${m.id}"><img src="${m.coverImage.large}" alt="" loading="lazy">
+    <li><a href="line.html?id=${m.id}"><img src="${cover(m)}" alt="" loading="lazy">
       <span><b>${esc(title(m))}</b><small>${m.role}, ${FORMAT[m.format] || ''} ${m.startDate.year || ''}</small></span></a></li>`).join('');
 
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.value === (b.dataset.view === 'order' ? view.order : view.service))));
@@ -129,7 +129,7 @@ function shareCard() {
   showCard(() => lineCard({
     name: title(anchor),
     color: getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#ffd23f',
-    banner: anchor.bannerImage || anchor.coverImage.large,
+    banner: safeUrl(anchor.bannerImage) ? anchor.bannerImage : anchor.coverImage?.large,
     stops: stops.map((m, i) => ({
       name: title(m),
       state: i === hereIdx ? 'here' : m.status === 'NOT_YET_RELEASED' ? 'soon' : seen(m, list) >= epCount(m) && epCount(m) > 0 ? 'done' : m.role === 'recap' ? 'recap' : 'todo',
@@ -156,11 +156,11 @@ async function boot() {
   const [user, list] = await Promise.all([me(), listStatus([...stops, ...transfers].map(m => m.id))]);
   data = { stops, transfers, anchor, list, user, capped: graph.capped };
 
-  const color = anchor.coverImage.color || '#ffd23f';
+  const color = tint(anchor, '#ffd23f');
   document.documentElement.style.setProperty('--line', color);
   document.title = `${title(anchor)} watch order · Animetro`;
   $('#name').textContent = title(anchor);
-  $('#hero').style.setProperty('--banner', anchor.bannerImage ? `url(${anchor.bannerImage})` : 'none');
+  $('#hero').style.setProperty('--banner', safeUrl(anchor.bannerImage) ? `url("${anchor.bannerImage}")` : 'none');
   $('#loading').remove();
   $('#map').hidden = false;
   render();

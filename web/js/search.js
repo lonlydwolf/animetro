@@ -1,5 +1,5 @@
 import { gql, title, CARD, prefs, adultArg } from './api.js';
-import { header, searchBox, $, esc, cards, countdown, fail } from './ui.js';
+import { header, searchBox, $, esc, cards, countdown, fail, cover, tint } from './ui.js';
 
 header();
 searchBox($('#q'), m => (location.href = `line.html?id=${m.id}`));
@@ -31,8 +31,8 @@ gql(`query($now:Int,$a:Boolean){
   await cards($('#trending'), d.trending.media);
   const soon = d.soon.airingSchedules.filter(a => (!a.media.isAdult || prefs.adult()) && a.media.popularity > 8000).slice(0, 4);
   $('#soon').innerHTML = soon.map(a => `
-    <a class="journey" href="anime.html?id=${a.media.id}" style="--c:${a.media.coverImage.color || 'var(--led)'}">
-      <img src="${a.media.coverImage.medium}" alt="" loading="lazy">
+    <a class="journey" href="anime.html?id=${a.media.id}" style="--c:${tint(a.media, 'var(--led)')}">
+      <img src="${cover(a.media, 'medium')}" alt="" loading="lazy">
       <div><b>${esc(title(a.media))}</b>
         <small>Episode ${a.episode}${a.media.episodes ? ` of ${a.media.episodes}` : ''}</small>
         <div class="countdown" data-at="${a.airingAt}">${countdown(a.airingAt - Date.now() / 1000)}</div></div>

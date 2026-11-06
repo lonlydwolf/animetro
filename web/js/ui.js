@@ -4,6 +4,14 @@ export const $ = (s, el = document) => el.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 export const qs = () => new URLSearchParams(location.search);
 
+// Values from AniList that end up in attributes or CSS. Only plain https addresses and hex colors get through,
+// so a malformed or hostile value can't break out of the attribute; missing values fall back quietly.
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+export const safeUrl = u => (/^https:\/\/[^\s"'()<>\\]+$/i.test(u || '') ? esc(u) : '');
+export const safeColor = (c, fallback = 'var(--rail)') => (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : fallback);
+export const cover = (m, size = 'large') => safeUrl(m?.coverImage?.[size] || m?.coverImage?.large || m?.coverImage?.medium) || BLANK;
+export const tint = (m, fallback) => safeColor(m?.coverImage?.color, fallback);
+
 const NAV = [
   ['search.html', 'Discover'],
   ['explore.html', 'Explore'],
@@ -43,7 +51,7 @@ export function header() {
   $('.adult-pill', el).onclick = adultGate;
   me().then(u => {
     if (!u) return;
-    $('.pass-avatar', el).style.backgroundImage = `url(${u.avatar.large})`;
+    if (safeUrl(u.avatar?.large)) $('.pass-avatar', el).style.backgroundImage = `url("${u.avatar.large}")`;
     $('.pass-avatar', el).classList.add('on');
     $('.pass-name', el).textContent = u.name;
   });
@@ -94,9 +102,9 @@ export function searchBox(input, onPick) {
   const render = () => {
     box.innerHTML = items.map((m, i) => `
       <div class="suggest-row${i === active ? ' active' : ''}${nsfw(m)}" role="option" data-i="${i}">
-        <img src="${m.coverImage.medium}" alt="" loading="lazy">
-        <div><b>${esc(title(m))}</b><small>${esc([m.isAdult ? '18+' : '', m.title.english && m.title.romaji !== m.title.english ? m.title.romaji : '', FORMAT[m.format], m.startDate.year].filter(Boolean).join(', '))}</small></div>
-        <a class="suggest-info" href="anime.html?id=${m.id}" title="Details">i</a>
+        <img src="${cover(m, 'medium')}" alt="" loading="lazy">
+        <div><b>${esc(title(m))}</b><small>${esc([m.isAdult ? '18+' : '', m.title?.english && m.title?.romaji !== m.title?.english ? m.title.romaji : '', FORMAT[m.format], m.startDate?.year].filter(Boolean).join(', '))}</small></div>
+        <a class="suggest-info" href="anime.html?id=${+m.id}" title="Details">i</a>
       </div>`).join('');
     box.classList.toggle('open', items.length > 0);
   };
@@ -130,12 +138,12 @@ export function searchBox(input, onPick) {
 
 // Poster card used in grids. `entry` is the rider's list entry, if any; `extra` is HTML under the title.
 export function card(m, entry, extra = '') {
-  const color = m.coverImage?.color || '#4b5684';
+  const color = tint(m, '#4b5684');
   const meta = [FORMAT[m.format], m.seasonYear, m.episodes && m.format !== 'MOVIE' ? `${m.episodes} ep` : ''].filter(Boolean).join('  ');
   return `
     <a class="card${nsfw(m)}" href="anime.html?id=${m.id}" style="--c:${color}">
       <div class="poster">
-        <img src="${m.coverImage?.large}" alt="" loading="lazy">
+        <img src="${cover(m)}" alt="" loading="lazy">
         ${m.averageScore ? `<span class="score">${m.averageScore}</span>` : ''}
         ${entry ? `<span class="ribbon s-${entry.status}">${STATUS[entry.status]}</span>` : ''}
         ${m.isAdult ? '<span class="adult-badge">18+</span>' : ''}

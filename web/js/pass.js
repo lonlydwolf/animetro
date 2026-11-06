@@ -1,5 +1,5 @@
 import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp } from './api.js';
-import { header, $, esc, toast, fail } from './ui.js';
+import { header, $, esc, toast, fail, cover, tint, safeUrl } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
@@ -56,7 +56,7 @@ async function boot() {
     <div class="pass-grid">
       <div class="ic" style="--pc:${esc(pc)}">
         <div class="ic-top"><span>Animetro pass</span><span class="ic-tier" style="--tc:${rank.tier.c}">${rank.tier.name}</span><i class="ic-chip"></i></div>
-        <div class="ic-who"><img src="${user.avatar.large}" alt=""><div><b>${esc(user.name)}</b>
+        <div class="ic-who"><img src="${safeUrl(user.avatar?.large)}" alt=""><div><b>${esc(user.name)}</b>
           <small>Rider since ${new Date(d.User.createdAt * 1000).getFullYear()}${user.canWrite ? '' : ', read only'}</small></div></div>
         <div class="ic-stats">
           <div><b>${s.count}</b>titles</div>
@@ -72,7 +72,7 @@ async function boot() {
           <div class="vibe"><span>${esc(g.genre)}</span><div class="bar" style="--c:var(--${GENRE_COLOR[g.genre] || 'hibiya'})"><i style="width:${(g.count / genres[0].count) * 100}%"></i></div><span>${Math.round((g.count / totalG) * 100)}%</span></div>`).join('')}</div>`
         : `<h2>${persona}</h2><p>${blurb} AniList hasn't calculated stats for this profile yet.</p>`}
         <p style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px">
-          <a class="btn ghost" href="${user.siteUrl}" target="_blank" rel="noopener">Open AniList profile</a>
+          <a class="btn ghost" href="${safeUrl(user.siteUrl) || 'https://anilist.co'}" target="_blank" rel="noopener">Open AniList profile</a>
           <button class="btn ghost" id="card">Share my pass</button>
           <button class="btn ghost" id="logout">Disconnect</button>
         </p>
@@ -148,8 +148,8 @@ function renderCurrent(user, list) {
   el.innerHTML = list.map(({ progress, media: m }) => {
     const total = m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : 0);
     return `
-      <div class="journey" style="--c:${m.coverImage.color || 'var(--platform)'}">
-        <a href="line.html?id=${m.id}"><img src="${m.coverImage.medium}" alt=""></a>
+      <div class="journey" style="--c:${tint(m, 'var(--platform)')}">
+        <a href="line.html?id=${m.id}"><img src="${cover(m, 'medium')}" alt=""></a>
         <div><a href="anime.html?id=${m.id}" style="text-decoration:none"><b>${esc(title(m))}</b></a>
           <div class="bar"><i style="width:${total ? Math.min(100, (progress / total) * 100) : 0}%"></i></div>
           <small>Episode <span data-progress>${progress}</span>${total ? ` of ${total}` : ''}</small></div>
@@ -182,7 +182,7 @@ async function pick(user, total) {
     const m = all[Math.floor(Math.random() * all.length)]?.media;
     if (!m) throw new Error('Your Planning list is empty. Add a few shows first.');
     $('#tonight').innerHTML = `
-      <img src="${m.coverImage.large}" alt="">
+      <img src="${cover(m)}" alt="">
       <div><b>${esc(title(m))}</b><p class="hint" style="margin:0 0 12px">${[m.seasonYear, m.episodes && `${m.episodes} episodes`, m.averageScore && `${m.averageScore}%`].filter(Boolean).join(', ')}. ${m.genres.slice(0, 3).join(', ')}.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="line.html?id=${m.id}">See watch order</a><button class="btn ghost" id="pick">Pick again</button></div></div>`;
     $('#pick').onclick = () => pick(user, total);

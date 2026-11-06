@@ -1,5 +1,5 @@
 import { gql, me, title, saveEntries } from './api.js';
-import { header, $, esc, countdown, minutes, toast, fail } from './ui.js';
+import { header, $, esc, countdown, minutes, toast, fail, cover, tint } from './ui.js';
 import { remaining, fit } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 
@@ -85,8 +85,8 @@ function ride({ e, r }) {
     : 'Every episode watched';
   const canPlus = user.canWrite && (r.left > 0 || (!r.airing && total && e.progress < total));
   return `
-    <div class="ride${r.last ? ' is-last' : ''}" style="--c:${m.coverImage.color || 'var(--platform)'}" data-id="${m.id}">
-      <a class="ride-cover" href="anime.html?id=${m.id}"><img src="${m.coverImage.large}" alt="" loading="lazy"></a>
+    <div class="ride${r.last ? ' is-last' : ''}" style="--c:${tint(m, 'var(--platform)')}" data-id="${m.id}">
+      <a class="ride-cover" href="anime.html?id=${m.id}"><img src="${cover(m)}" alt="" loading="lazy"></a>
       <div class="ride-body">
         <a class="ride-title" href="line.html?id=${m.id}">${esc(title(m))}</a>
         <div class="bar"><i style="width:${pct}%"></i></div>
@@ -140,8 +140,8 @@ function showFit() {
   if (!picks.length) { el.innerHTML = `<p class="hint">Nothing fits in ${minutes(budget)}. Even one episode runs longer.</p>`; return; }
   el.innerHTML = `
     <ol class="fit-list">${picks.map(p => `
-      <li style="--c:${p.media.coverImage.color || 'var(--platform)'}">
-        <img src="${p.media.coverImage.large}" alt="" loading="lazy">
+      <li style="--c:${tint(p.media, 'var(--platform)')}">
+        <img src="${cover(p.media)}" alt="" loading="lazy">
         <div><a href="anime.html?id=${p.media.id}"><b>${esc(title(p.media))}</b></a>
           <small>${p.media.format === 'MOVIE' ? 'The movie' : p.eps === 1 ? `Episode ${p.from}` : `Episodes ${p.from} to ${p.to}`}${p.finishes ? ', and that finishes it' : p.fresh ? ', a new start' : ''}</small></div>
         <span>${minutes(p.minutes)}</span>

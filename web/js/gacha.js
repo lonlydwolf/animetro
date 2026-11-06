@@ -1,5 +1,5 @@
 import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds, saveEntries } from './api.js';
-import { header, $, esc, FORMAT, toast, nsfw } from './ui.js';
+import { header, $, esc, FORMAT, toast, nsfw, cover } from './ui.js';
 
 header();
 const GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
@@ -75,7 +75,7 @@ function reveal(list) {
         <div class="pull-inner">
           <div class="pull-front">
             <span class="rar">${r}</span>
-            <a href="anime.html?id=${m.id}" class="${nsfw(m)}"><img src="${m.coverImage.large}" alt=""></a>
+            <a href="anime.html?id=${m.id}" class="${nsfw(m)}"><img src="${cover(m)}" alt=""></a>
             <div class="info">
               <b>${esc(title(m))}</b>
               <small>${[FORMAT[m.format], m.seasonYear, m.averageScore && `${m.averageScore}%`].filter(Boolean).join('  ')}</small>

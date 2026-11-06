@@ -1,5 +1,5 @@
 import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw } from './ui.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
 import { finishOdds } from './odds.js';
@@ -40,7 +40,7 @@ async function boot() {
   }
   entry = (await listStatus([id])).get(id);
   document.title = `${title(m)} · Animetro`;
-  document.documentElement.style.setProperty('--line', m.coverImage.color || '#ffd23f');
+  document.documentElement.style.setProperty('--line', tint(m, '#ffd23f'));
 
   const runtime = (m.episodes || 0) * (m.duration || 0);
   const tags = m.tags.filter(t => t.rank >= 60);
@@ -54,9 +54,9 @@ async function boot() {
   const hasLine = m.relations.edges.some(e => ['PREQUEL', 'SEQUEL', 'SIDE_STORY', 'PARENT', 'SPIN_OFF', 'ALTERNATIVE', 'SUMMARY'].includes(e.relationType));
 
   $('#page').innerHTML = `
-    <section class="anime-hero bleed" style="--banner:${m.bannerImage && !nsfw(m) ? `url(${m.bannerImage})` : 'none'}">
+    <section class="anime-hero bleed" style="--banner:${safeUrl(m.bannerImage) && !nsfw(m) ? `url(${safeUrl(m.bannerImage)})` : 'none'}">
       <div class="anime-top${nsfw(m)}">
-        <img class="cover" src="${m.coverImage.extraLarge}" alt="">
+        <img class="cover" src="${cover(m, 'extraLarge')}" alt="">
         <div>
           <h1>${esc(title(m))}</h1>
           <p class="native">${esc([m.title.english && m.title.romaji, m.title.native].filter(Boolean).join('  /  '))}</p>
@@ -94,8 +94,8 @@ async function boot() {
         ${m.characters.edges.length ? `<section><h2>Cast</h2><p class="hint">Characters and their Japanese voice actors.</p>
           <div class="cast">${m.characters.edges.map(e => `
             <div class="cast-row">
-              <div><img src="${e.node.image.medium}" alt="" loading="lazy"><span><b>${esc(e.node.name.full)}</b><small>${cap(e.role)}</small></span></div>
-              ${e.voiceActors[0] ? `<div><img src="${e.voiceActors[0].image.medium}" alt="" loading="lazy"><span><b>${esc(e.voiceActors[0].name.full)}</b><small>Voice</small></span></div>` : ''}
+              <div><img src="${safeUrl(e.node.image?.medium)}" alt="" loading="lazy"><span><b>${esc(e.node.name.full)}</b><small>${cap(e.role)}</small></span></div>
+              ${e.voiceActors[0] ? `<div><img src="${safeUrl(e.voiceActors[0].image?.medium)}" alt="" loading="lazy"><span><b>${esc(e.voiceActors[0].name.full)}</b><small>Voice</small></span></div>` : ''}
             </div>`).join('')}</div></section>` : ''}
       </div>
 
@@ -116,7 +116,7 @@ async function boot() {
         ${dist.length ? `<div><h3>Score spread</h3><p></p>
           <div class="dist">${dist.map(d => `<i style="height:${(d.amount / maxAmt) * 100}%" title="${d.score}: ${d.amount.toLocaleString()} users"></i>`).join('')}</div>
           <div class="dist-labels"><span>10</span><span>100</span></div></div>` : ''}
-        <a class="btn ghost" href="${m.siteUrl}" target="_blank" rel="noopener">Open on AniList</a>
+        <a class="btn ghost" href="${safeUrl(m.siteUrl) || `https://anilist.co/anime/${+m.id}`}" target="_blank" rel="noopener">Open on AniList</a>
       </aside>
     </div>
 
@@ -160,7 +160,7 @@ function watch(m, streams) {
   return `<div>
     <h3>Where to watch</h3>
     ${streams.length ? `<p class="hint">Official, from AniList. Availability depends on your region.</p><div class="stream">${streams.map(l => `
-      <a href="${esc(l.url)}" target="_blank" rel="noopener" style="--c:${l.color || 'var(--rail)'}">${l.icon ? `<img src="${esc(l.icon)}" alt="">` : ''}${esc(l.site)}</a>`).join('')}</div>` : ''}
+      <a href="${safeUrl(l.url) || '#'}" target="_blank" rel="noopener" style="--c:${safeColor(l.color)}">${safeUrl(l.icon) ? `<img src="${safeUrl(l.icon)}" alt="">` : ''}${esc(l.site)}</a>`).join('')}</div>` : ''}
     <p class="hint" style="margin:${streams.length ? '16px' : '6px'} 0 8px">${m.isAdult ? 'Hentai streaming' : 'Free streaming sites'}, ranked by <a href="https://everythingmoe.com/" target="_blank" rel="noopener">everythingmoe</a>. Most links search for “${esc(sites[0]?.q)}”.</p>
     <div class="sites">${sites.slice(0, SHOW).map(site).join('')}</div>
     ${sites.length > SHOW ? `<details class="more-sites"><summary>${sites.length - SHOW} more sites</summary><div class="sites">${sites.slice(SHOW).map(site).join('')}</div></details>` : ''}

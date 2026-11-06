@@ -1,5 +1,5 @@
 import { gql, me, title, listStatus, prefs } from './api.js';
-import { header, $, esc, countdown } from './ui.js';
+import { header, $, esc, countdown, cover } from './ui.js';
 
 header();
 const startOfDay = off => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + off); return d; };
@@ -30,7 +30,7 @@ function render() {
   $('#rows').innerHTML = shown.map(a => `
     <tr data-id="${a.media.id}" data-at="${a.airingAt}" class="${list.has(a.media.id) ? 'mine' : ''}">
       <td>${new Date(a.airingAt * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</td>
-      <td class="dest"><a href="anime.html?id=${a.media.id}"><img src="${a.media.coverImage.medium}" alt="" loading="lazy">${esc(title(a.media))}</a></td>
+      <td class="dest"><a href="anime.html?id=${a.media.id}"><img src="${cover(a.media, 'medium')}" alt="" loading="lazy">${esc(title(a.media))}</a></td>
       <td>${a.episode}${a.media.episodes ? `/${a.media.episodes}` : ''}${a.episode === a.media.episodes ? ' FINAL' : a.episode === 1 ? ' NEW' : ''}</td>
       <td class="left"></td><td class="st"></td>
     </tr>`).join('') || `<tr><td colspan="5">${mine ? 'None of your shows air this day.' : 'No departures.'}</td></tr>`;

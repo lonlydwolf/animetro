@@ -1,5 +1,5 @@
 import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, minutes, fail, nsfw } from './ui.js';
+import { header, $, esc, minutes, fail, nsfw, cover, tint } from './ui.js';
 import { describe, dayKey, streak } from './journal.js';
 
 header();
@@ -106,9 +106,9 @@ function timeline() {
     return `<div class="log-day">
       <h3>${label}${eps ? `<span>${eps} episode${eps === 1 ? '' : 's'} · ${minutes(mins)}</span>` : ''}</h3>
       <ol>${list.map(({ a, d }) => `
-        <li class="log-row k-${d.kind}${nsfw(a.media)}" style="--c:${a.media.coverImage.color || 'var(--platform)'}">
+        <li class="log-row k-${d.kind}${nsfw(a.media)}" style="--c:${tint(a.media, 'var(--platform)')}">
           <time>${new Date(a.createdAt * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</time>
-          <a href="anime.html?id=${a.media.id}" class="log-cover"><img src="${a.media.coverImage.medium}" alt="" loading="lazy"></a>
+          <a href="anime.html?id=${a.media.id}" class="log-cover"><img src="${cover(a.media, 'medium')}" alt="" loading="lazy"></a>
           <p>${d.verb} <a href="anime.html?id=${a.media.id}"><b>${esc(title(a.media))}</b></a>${d.minutes ? `<small>${minutes(d.minutes)}</small>` : ''}</p>
         </li>`).join('')}</ol></div>`;
   }).join('') || `<p class="empty">${acts.length ? 'Nothing of this kind in what has loaded so far.' : 'No activity on AniList yet. Log an episode and it shows up here.'}</p>`;
