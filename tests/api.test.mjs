@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gql, rankSearch } from '../web/js/api.js';
+import { gql, rankSearch, saveEntries } from '../web/js/api.js';
 
 test('a repeated query within 5 minutes is answered from the cache; a mutation clears it', async () => {
   let calls = 0;
@@ -32,4 +32,19 @@ test('search re-ranks exact and contained title matches above obscure synonym hi
   assert.equal(rankSearch(hits, 'onigiri')[0].id, 1);
   assert.equal(rankSearch(hits, 'kimetsu no yaiba')[0].id, 3);
   assert.deepEqual(rankSearch([t(5, 'A', 'A', 1), t(6, 'B', 'B', 9)], 'zzz').map(m => m.id), [5, 6]);
+});
+
+test('a batch save that only partly succeeds is reported as a failure, with what did save', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: { m0: { mediaId: 10, status: 'PLANNING', progress: 0 }, m1: null },
+    errors: [{ message: 'validation', status: 400 }],
+  }));
+  await assert.rejects(saveEntries([{ mediaId: 10, status: 'PLANNING' }, { mediaId: 11, status: 'PLANNING' }]),
+    err => { assert.deepEqual(err.saved, [10]); assert.match(err.message, /Saved 1 of 2/); return true; });
+});
+
+test('a batch save that fully succeeds returns every entry', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: { m0: { mediaId: 10 }, m1: { mediaId: 11 } } }));
+  const d = await saveEntries([{ mediaId: 10, status: 'PLANNING' }, { mediaId: 11, status: 'PLANNING' }]);
+  assert.equal(d.m1.mediaId, 11);
 });

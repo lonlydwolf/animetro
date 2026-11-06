@@ -194,7 +194,17 @@ export async function saveEntries(entries) {
   if (!entries.length) return;
   const body = entries.map((e, i) =>
     `m${i}: SaveMediaListEntry(mediaId:${+e.mediaId}${e.status ? `,status:${e.status}` : ''}${e.progress != null ? `,progress:${+e.progress}` : ''}){ mediaId status progress }`);
-  return gql(`mutation{ ${body.join(' ')} }`);
+  const d = await gql(`mutation{ ${body.join(' ')} }`);
+  // AniList answers a batch with the entries it saved plus an error for the rest; don't call that a success
+  const saved = entries.filter((_, i) => d[`m${i}`]).map(e => +e.mediaId);
+  if (saved.length < entries.length) {
+    const err = new Error(saved.length
+      ? `Saved ${saved.length} of ${entries.length}. The rest didn't go through; try again.`
+      : "AniList didn't save that. Try again.");
+    err.saved = saved;
+    throw err;
+  }
+  return d;
 }
 
 // ---- shared bits ----------------------------------------------------------

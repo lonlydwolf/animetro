@@ -115,12 +115,13 @@ function render() {
 }
 
 async function plan(ids) {
-  try {
-    await saveEntries(ids.map(id => ({ mediaId: id, status: 'PLANNING' })));
-    ids.forEach(id => data.list.set(id, { mediaId: id, status: 'PLANNING', progress: 0 }));
-    toast(ids.length === 1 ? 'Added to Planning' : `Added ${ids.length} titles to Planning`);
-    render();
-  } catch (e) { toast(e.message); }
+  let saved = ids, problem;
+  try { await saveEntries(ids.map(id => ({ mediaId: id, status: 'PLANNING' }))); }
+  catch (e) { saved = e.saved || []; problem = e.message; }
+  // only mark what AniList actually saved
+  saved.forEach(id => data.list.set(id, { mediaId: id, status: 'PLANNING', progress: 0 }));
+  if (saved.length) render();
+  toast(problem || (ids.length === 1 ? 'Added to Planning' : `Added ${ids.length} titles to Planning`));
 }
 
 function shareCard() {
