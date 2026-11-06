@@ -1,6 +1,6 @@
 // Share cards: a watch-order line or your pass, drawn on a canvas as a 1200x675 image you can save,
 // copy, or share. No libraries; AniList's image server allows canvas export (it sends CORS headers).
-import { toast } from './ui.js';
+import { toast, safeFilename } from './ui.js';
 
 const W = 1200, H = 675;
 const C = { night: '#131833', tunnel: '#1c2346', rail: '#2d3768', ink: '#eef1fa', dim: '#9aa3c7', platform: '#ffd23f' };
@@ -164,7 +164,8 @@ export async function passCard(p) {
 }
 
 // ---- show it ----------------------------------------------------------------
-export async function showCard(make, filename) {
+export async function showCard(make, name) {
+  const filename = safeFilename(name);
   toast('Drawing your card…');
   let c;
   try { c = await make(); } catch (e) { return toast(`Couldn't draw the card: ${e.message}`); }

@@ -68,7 +68,7 @@ async function boot() {
             ${m.episodes ? `<span class="tag">${m.episodes} episodes${m.duration ? ` of ${m.duration} min` : ''}</span>` : ''}
             ${m.season ? `<span class="tag">${cap(m.season)} ${m.seasonYear}</span>` : ''}
             <span class="tag">${cap(m.status)}</span>
-            ${m.genres.map(g => `<a class="tag" href="explore.html?genres=${encodeURIComponent(g)}" style="text-decoration:none">${g}</a>`).join('')}
+            ${m.genres.map(g => `<a class="tag" href="explore.html?genres=${encodeURIComponent(g)}" style="text-decoration:none">${esc(g)}</a>`).join('')}
           </div>
           <div class="actions">
             ${hasLine ? `<a class="btn" href="line.html?id=${m.id}">See watch order</a>` : ''}

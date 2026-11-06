@@ -1,5 +1,5 @@
 import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
-import { header, $, esc, toast, fail, cover, tint, safeUrl, nsfw } from './ui.js';
+import { header, $, esc, toast, fail, cover, tint, safeUrl, nsfw, safeColor } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
@@ -49,12 +49,12 @@ async function boot() {
   const rank = ride(s);
   const top = genres[0]?.genre;
   const [persona, blurb] = PERSONA[top] || ['The Commuter', 'Keep riding and your anime personality will show up here.'];
-  const pc = PROFILE[user.options?.profileColor] || user.options?.profileColor || '#3db4f2';
+  const pc = safeColor(PROFILE[user.options?.profileColor] || user.options?.profileColor, '#3db4f2'); // custom colors are hex
   const totalG = genres.reduce((a, g) => a + g.count, 0) || 1;
 
   page.innerHTML = `
     <div class="pass-grid">
-      <div class="ic" style="--pc:${esc(pc)}">
+      <div class="ic" style="--pc:${pc}">
         <div class="ic-top"><span>Animetro pass</span><span class="ic-tier" style="--tc:${rank.tier.c}">${rank.tier.name}</span><i class="ic-chip"></i></div>
         <div class="ic-who"><img src="${safeUrl(user.avatar?.large)}" alt=""><div><b>${esc(user.name)}</b>
           <small>Rider since ${new Date(d.User.createdAt * 1000).getFullYear()}${user.canWrite ? '' : ', read only'}</small></div></div>
@@ -185,7 +185,7 @@ async function pick(user, total) {
     $('#tonight').className = `tonight${nsfw(m)}`;
     $('#tonight').innerHTML = `
       <img src="${cover(m)}" alt="">
-      <div><b>${esc(title(m))}</b><p class="hint" style="margin:0 0 12px">${[m.seasonYear, m.episodes && `${m.episodes} episodes`, m.averageScore && `${m.averageScore}%`].filter(Boolean).join(', ')}. ${m.genres.slice(0, 3).join(', ')}.</p>
+      <div><b>${esc(title(m))}</b><p class="hint" style="margin:0 0 12px">${[m.seasonYear, m.episodes && `${m.episodes} episodes`, m.averageScore && `${m.averageScore}%`].filter(Boolean).join(', ')}. ${esc((m.genres || []).slice(0, 3).join(', '))}.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="line.html?id=${m.id}">See watch order</a><button class="btn ghost" id="pick">Pick again</button></div></div>`;
     $('#pick').onclick = () => pick(user, total);
   } catch (e) { toast(e.message); $('#pick').disabled = false; }

@@ -11,6 +11,8 @@ export const safeUrl = u => (/^https:\/\/[^\s"'()<>\\]+$/i.test(u || '') ? esc(u
 export const safeColor = (c, fallback = 'var(--rail)') => (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : fallback);
 export const cover = (m, size = 'large') => safeUrl(m?.coverImage?.[size] || m?.coverImage?.large || m?.coverImage?.medium) || BLANK;
 export const tint = (m, fallback) => safeColor(m?.coverImage?.color, fallback);
+// File names built from titles or usernames: letters, digits, dots and dashes only.
+export const safeFilename = name => String(name || 'animetro').replace(/[^\w.-]+/g, '-').replace(/^[-.]+/, '').slice(0, 80) || 'animetro.png';
 
 const NAV = [
   ['search.html', 'Discover'],

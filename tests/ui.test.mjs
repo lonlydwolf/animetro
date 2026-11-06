@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { safeUrl, safeColor, cover, tint, card, esc } from '../web/js/ui.js';
+import { safeUrl, safeColor, cover, tint, card, esc, safeFilename } from '../web/js/ui.js';
 
 const HOSTILE = 'https://s4.anilist.co/x.jpg" onerror="alert(localStorage.getItem(\'animetro.token\'))';
 
@@ -31,4 +31,11 @@ test('a card built from hostile API data carries no injected attributes', () => 
   assert.ok(!/onerror=/i.test(html.replace(/&lt;img src=x onerror=alert\(1\)&gt;/, '')), html);
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes(esc('<img src=x onerror=alert(1)>')), 'the title is shown as text');
+});
+
+test('file names built from titles or usernames carry no markup', () => {
+  assert.equal(safeFilename('Gangester-animetro-pass.png'), 'Gangester-animetro-pass.png');
+  assert.equal(safeFilename('x"><img src=x onerror="alert(1)">.png'), 'x-img-src-x-onerror-alert-1-.png');
+  assert.equal(safeFilename('../../etc/passwd'), 'etc-passwd');
+  assert.equal(safeFilename(''), 'animetro');
 });
