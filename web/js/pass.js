@@ -176,12 +176,17 @@ function renderCurrent(user, list) {
 async function pick(user, total) {
   $('#pick').disabled = true;
   try {
-    // Random page of 50, then a random show from it. Works even when AniList hasn't counted the list yet.
-    const d = await gql(`query($u:Int,$p:Int){ Page(page:$p,perPage:50){ mediaList(userId:$u,type:ANIME,status:PLANNING){ media{ ${CARD} } } } }`,
-      { u: user.id, p: 1 + Math.floor(Math.random() * Math.max(1, Math.ceil(total / 50))) });
-    const all = d.Page.mediaList.filter(x => !x.media.isAdult || prefs.adult());
-    const m = all[Math.floor(Math.random() * all.length)]?.media;
-    if (!m) throw new Error('Your Planning list is empty. Add a few shows first.');
+    // Pages of 50 in random order, then a random show from the first page that has one we can show.
+    // (A page can hold only 18+ titles while 18+ is off.) At most 8 pages, to stay inside AniList's rate limit.
+    const pages = Array.from({ length: Math.max(1, Math.ceil(total / 50)) }, (_, i) => i + 1).sort(() => Math.random() - .5).slice(0, 8);
+    let m, seen = 0;
+    for (const p of pages) {
+      const d = await gql(`query($u:Int,$p:Int){ Page(page:$p,perPage:50){ mediaList(userId:$u,type:ANIME,status:PLANNING){ media{ ${CARD} } } } }`, { u: user.id, p });
+      seen += d.Page.mediaList.length;
+      const ok = d.Page.mediaList.filter(x => !x.media.isAdult || prefs.adult());
+      if (ok.length) { m = ok[Math.floor(Math.random() * ok.length)].media; break; }
+    }
+    if (!m) throw new Error(seen ? 'Everything left on your Planning list is 18+, which is hidden. Turn 18+ on to include it.' : 'Your Planning list is empty. Add a few shows first.');
     $('#tonight').className = `tonight${nsfw(m)}`;
     $('#tonight').innerHTML = `
       <img src="${cover(m)}" alt="">
