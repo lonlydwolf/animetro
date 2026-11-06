@@ -1,11 +1,11 @@
-import { gql, me, title, CARD, TICKETS, saveEntries } from './api.js';
-import { header, $, esc, FORMAT, toast } from './ui.js';
+import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds, saveEntries } from './api.js';
+import { header, $, esc, FORMAT, toast, nsfw } from './ui.js';
 
 header();
 const GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
 const COLORS = ['ginza', 'marunouchi', 'tozai', 'chiyoda', 'yurakucho', 'hanzomon', 'namboku', 'fukutoshin', 'hibiya'];
-$('#genre').innerHTML += GENRES.map(g => `<option>${g}</option>`).join('');
-$('#ticket').innerHTML = Object.entries(TICKETS).map(([k, t]) => `<option value="${k}"${k === 'teen' ? ' selected' : ''}>${t.label}: ${t.note.toLowerCase()}</option>`).join('');
+$('#genre').innerHTML += [...GENRES, ...(prefs.adult() ? ['Hentai'] : [])].map(g => `<option>${g}</option>`).join('');
+$('#ticket').innerHTML = tickets().map(([k, t]) => `<option value="${k}"${k === 'teen' ? ' selected' : ''}>${t.label}: ${t.note.toLowerCase()}</option>`).join('');
 $('#dome').innerHTML = Array.from({ length: 16 }, (_, i) =>
   `<span class="capsule" style="--c:var(--${COLORS[i % COLORS.length]});left:${12 + ((i * 53) % 200)}px;top:${110 + ((i * 37) % 120)}px;transform:rotate(${i * 47}deg)"></span>`).join('');
 
@@ -14,12 +14,16 @@ const rarity = m =>
 
 const totals = new Map(); // filter key -> how many shows match (memory only)
 let user;
-me().then(u => (user = u));
+me().then(u => { user = u; $('#fresh-wrap').hidden = !u; });
 
-function filters() {
+async function filters() {
   const t = TICKETS[$('#ticket').value];
   const [a, b] = ($('#era').value || '').split('-').map(Number);
+  const adult = $('#genre').value === 'Hentai' ? true : ticketAdult(t);
   return {
+    adult,
+    pop: adult ? 300 : 2500, // 18+ titles have far fewer viewers
+    not: $('#fresh').checked ? await seenIds() : undefined,
     genre: $('#genre').value || undefined,
     gnot: t.genre_not_in.length ? t.genre_not_in : undefined,
     tnot: t.tag_not_in.length ? t.tag_not_in : undefined,
@@ -27,8 +31,8 @@ function filters() {
     to: b ? b * 10000 : undefined,
   };
 }
-const ARGS = 'type:ANIME,isAdult:false,popularity_greater:2500,genre:$genre,genre_not_in:$gnot,tag_not_in:$tnot,startDate_greater:$from,startDate_lesser:$to';
-const VARS = '$genre:String,$gnot:[String],$tnot:[String],$from:FuzzyDateInt,$to:FuzzyDateInt';
+const ARGS = 'type:ANIME,isAdult:$adult,id_not_in:$not,popularity_greater:$pop,genre:$genre,genre_not_in:$gnot,tag_not_in:$tnot,startDate_greater:$from,startDate_lesser:$to';
+const VARS = '$adult:Boolean,$not:[Int],$pop:Int,$genre:String,$gnot:[String],$tnot:[String],$from:FuzzyDateInt,$to:FuzzyDateInt';
 
 // AniList's pageInfo.total is stuck at 5000, so estimate the match count by probing
 // which pages exist: first powers of two, then 16 steps between the last hit and the first miss.
@@ -49,7 +53,7 @@ async function count(f) {
 }
 
 async function pull(n) {
-  const f = filters(), key = JSON.stringify(f);
+  const f = await filters(), key = JSON.stringify({ ...f, not: !!f.not });
   if (!totals.has(key)) totals.set(key, await count(f));
   const total = totals.get(key);
   if (!total) throw new Error('No shows match these settings. Loosen a filter.');
@@ -71,7 +75,7 @@ function reveal(list) {
         <div class="pull-inner">
           <div class="pull-front">
             <span class="rar">${r}</span>
-            <a href="anime.html?id=${m.id}"><img src="${m.coverImage.large}" alt=""></a>
+            <a href="anime.html?id=${m.id}" class="${nsfw(m)}"><img src="${m.coverImage.large}" alt=""></a>
             <div class="info">
               <b>${esc(title(m))}</b>
               <small>${[FORMAT[m.format], m.seasonYear, m.averageScore && `${m.averageScore}%`].filter(Boolean).join('  ')}</small>

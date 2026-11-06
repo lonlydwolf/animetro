@@ -1,5 +1,5 @@
-import { gql, me, title, plainText, listStatus, saveEntries, CARD } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail } from './ui.js';
+import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs } from './api.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw } from './ui.js';
 
 header();
 const id = +qs().get('id');
@@ -27,8 +27,15 @@ let media, entry, user;
 async function boot() {
   if (!id) { location.href = 'index.html'; return; }
   [media, user] = await Promise.all([gql(Q, { id }).then(d => d.Media), me()]);
-  entry = (await listStatus([id])).get(id);
   const m = media;
+  if (m.isAdult && !prefs.adult()) {
+    $('#page').innerHTML = `<section class="fy-hero"><span class="roundel" style="border-color:var(--marunouchi)">18</span><h1 style="margin-top:16px">This stop is 18+</h1>
+      <p class="hint" style="font-size:1rem">AniList marks this title as adult content. Animetro hides 18+ titles unless you turn them on.</p>
+      <p style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="gate-open">Show 18+ titles</button><a class="btn ghost" href="index.html">Back to search</a></p></section>`;
+    $('#gate-open').onclick = adultGate;
+    return;
+  }
+  entry = (await listStatus([id])).get(id);
   document.title = `${title(m)} · Animetro`;
   document.documentElement.style.setProperty('--line', m.coverImage.color || '#ffd23f');
 
@@ -40,18 +47,19 @@ async function boot() {
   const maxAmt = Math.max(1, ...dist.map(d => d.amount));
   const ranks = m.rankings.filter(r => r.allTime || r.season).slice(0, 4);
   const streams = m.externalLinks.filter(l => l.type === 'STREAMING');
-  const recs = m.recommendations.nodes.map(n => n.mediaRecommendation).filter(r => r && !r.isAdult);
+  const recs = m.recommendations.nodes.map(n => n.mediaRecommendation).filter(r => r && (!r.isAdult || prefs.adult()));
   const hasLine = m.relations.edges.some(e => ['PREQUEL', 'SEQUEL', 'SIDE_STORY', 'PARENT', 'SPIN_OFF', 'ALTERNATIVE', 'SUMMARY'].includes(e.relationType));
 
   $('#page').innerHTML = `
-    <section class="anime-hero bleed" style="--banner:${m.bannerImage ? `url(${m.bannerImage})` : 'none'}">
-      <div class="anime-top">
+    <section class="anime-hero bleed" style="--banner:${m.bannerImage && !nsfw(m) ? `url(${m.bannerImage})` : 'none'}">
+      <div class="anime-top${nsfw(m)}">
         <img class="cover" src="${m.coverImage.extraLarge}" alt="">
         <div>
           <h1>${esc(title(m))}</h1>
           <p class="native">${esc([m.title.english && m.title.romaji, m.title.native].filter(Boolean).join('  /  '))}</p>
           <div class="facts">
             ${m.averageScore ? `<span class="tag">${m.averageScore}% score</span>` : ''}
+            ${m.isAdult ? '<span class="tag" style="background:var(--marunouchi);color:#fff">18+</span>' : ''}
             <span class="tag">${FORMAT[m.format] || cap(m.format)}</span>
             ${m.episodes ? `<span class="tag">${m.episodes} episodes${m.duration ? ` of ${m.duration} min` : ''}</span>` : ''}
             ${m.season ? `<span class="tag">${cap(m.season)} ${m.seasonYear}</span>` : ''}
@@ -132,7 +140,7 @@ function renderListControls() {
       <option value="">Add to list…</option>
       ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${entry?.status === k ? ' selected' : ''}>${v}</option>`).join('')}
     </select>
-    ${entry ? `<span class="stepper">Ep ${entry.progress}${total ? ` / ${total}` : ''} <button id="plus" aria-label="Watched one more episode">+1</button></span>` : ''}`;
+    ${entry ? `<span class="stepper">Ep ${entry.progress}${total ? ` / ${total}` : ''}${!total || entry.progress < total ? ' <button id="plus" aria-label="Watched one more episode">+1</button>' : ''}</span>` : ''}`;
   $('#status').onchange = e => e.target.value && save({ status: e.target.value, ...(e.target.value === 'COMPLETED' && total ? { progress: total } : {}) });
   $('#plus') && ($('#plus').onclick = () => {
     const progress = entry.progress + 1;

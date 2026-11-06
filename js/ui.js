@@ -1,4 +1,4 @@
-import { gql, me, title, listStatus, rankSearch, CARD } from './api.js';
+import { gql, me, title, listStatus, rankSearch, CARD, prefs, adultArg } from './api.js';
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -7,6 +7,7 @@ export const qs = () => new URLSearchParams(location.search);
 const NAV = [
   ['index.html', 'Search'],
   ['explore.html', 'Explore'],
+  ['foryou.html', 'For you'],
   ['departures.html', 'Departures'],
   ['gacha.html', 'Gacha'],
 ];
@@ -30,18 +31,54 @@ export function header() {
     </a>
     <nav>${NAV.map(([href, label]) => `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
     ${page === 'index.html' ? '' : '<div class="top-search"><input type="search" placeholder="Find a series…" aria-label="Find a series"></div>'}
-    <a class="pass-link" href="pass.html"${page === 'pass.html' ? ' aria-current="page"' : ''}><span class="pass-avatar"></span><span class="pass-name">My pass</span></a>`;
+    <div class="top-end">
+      <button class="adult-pill" aria-pressed="${prefs.adult()}" title="18+ titles are ${prefs.adult() ? 'shown' : 'hidden'}. Click to change.">18+</button>
+      <a class="pass-link" href="pass.html"${page === 'pass.html' ? ' aria-current="page"' : ''}><span class="pass-avatar"></span><span class="pass-name">My pass</span></a>
+    </div>`;
   document.body.prepend(el);
   const input = $('.top-search input', el);
   if (input) searchBox(input, m => (location.href = `line.html?id=${m.id}`));
+  $('.adult-pill', el).onclick = adultGate;
   me().then(u => {
     if (!u) return;
     $('.pass-avatar', el).style.backgroundImage = `url(${u.avatar.large})`;
     $('.pass-avatar', el).classList.add('on');
     $('.pass-name', el).textContent = u.name;
   });
-  addEventListener('ratelimit', e => toast(`AniList asked us to slow down. Retrying in ${e.detail}s…`));
+  addEventListener('ratelimit', e => toast(`Pausing ${e.detail}s to stay under AniList's limit of 30 requests a minute…`));
 }
+
+// The 18+ switch. A native <dialog>; saving reloads so every query picks up the new setting.
+export function adultGate() {
+  let d = $('#gate');
+  if (!d) {
+    d = document.createElement('dialog');
+    d.id = 'gate';
+    d.className = 'gate';
+    d.innerHTML = `
+      <form method="dialog">
+        <span class="roundel" aria-hidden="true">18</span>
+        <h2>Late-night service</h2>
+        <p>AniList marks hentai and other explicit anime as 18+. Animetro keeps them off the line unless you turn them on. Only do this if you're 18 or older and it's legal where you live.</p>
+        <label class="check"><input type="checkbox" name="adult"> Show 18+ titles. I'm 18 or older.</label>
+        <label class="check"><input type="checkbox" name="blur"> Blur 18+ covers until I hover over them</label>
+        <div class="gate-actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn" value="save">Save</button></div>
+      </form>`;
+    document.body.append(d);
+    d.addEventListener('close', () => {
+      if (d.returnValue !== 'save') return;
+      const f = $('form', d);
+      prefs.set(f.adult.checked, f.blur.checked);
+      location.reload();
+    });
+  }
+  const f = $('form', d);
+  f.adult.checked = prefs.adult();
+  f.blur.checked = prefs.blur();
+  d.returnValue = '';
+  d.showModal();
+}
+export const nsfw = m => (m?.isAdult && prefs.blur() ? ' nsfw' : '');
 
 // Typeahead that searches English + romaji titles. Debounced: we only get ~30 requests a minute.
 export function searchBox(input, onPick) {
@@ -54,9 +91,9 @@ export function searchBox(input, onPick) {
 
   const render = () => {
     box.innerHTML = items.map((m, i) => `
-      <div class="suggest-row${i === active ? ' active' : ''}" role="option" data-i="${i}">
+      <div class="suggest-row${i === active ? ' active' : ''}${nsfw(m)}" role="option" data-i="${i}">
         <img src="${m.coverImage.medium}" alt="" loading="lazy">
-        <div><b>${esc(title(m))}</b><small>${esc([m.title.english && m.title.romaji !== m.title.english ? m.title.romaji : '', FORMAT[m.format], m.startDate.year].filter(Boolean).join(', '))}</small></div>
+        <div><b>${esc(title(m))}</b><small>${esc([m.isAdult ? '18+' : '', m.title.english && m.title.romaji !== m.title.english ? m.title.romaji : '', FORMAT[m.format], m.startDate.year].filter(Boolean).join(', '))}</small></div>
         <a class="suggest-info" href="anime.html?id=${m.id}" title="Details">i</a>
       </div>`).join('');
     box.classList.toggle('open', items.length > 0);
@@ -67,7 +104,7 @@ export function searchBox(input, onPick) {
     if (s.length < 2) { items = []; return render(); }
     timer = setTimeout(async () => {
       const my = ++seq;
-      const d = await gql(`query($s:String){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:false){id popularity title{english romaji} format startDate{year} coverImage{medium}}}}`, { s }).catch(() => null);
+      const d = await gql(`query($s:String,$a:Boolean){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:$a){id popularity isAdult title{english romaji} format startDate{year} coverImage{medium}}}}`, { s, a: adultArg() }).catch(() => null);
       if (my !== seq || !d) return;
       items = rankSearch(d.Page.media, s).slice(0, 7); active = 0; render();
     }, 350);
@@ -89,19 +126,20 @@ export function searchBox(input, onPick) {
   input.addEventListener('focus', () => items.length && box.classList.add('open'));
 }
 
-// Poster card used in grids. `entry` is the rider's list entry, if any.
-export function card(m, entry) {
+// Poster card used in grids. `entry` is the rider's list entry, if any; `extra` is HTML under the title.
+export function card(m, entry, extra = '') {
   const color = m.coverImage?.color || '#4b5684';
   const meta = [FORMAT[m.format], m.seasonYear, m.episodes && m.format !== 'MOVIE' ? `${m.episodes} ep` : ''].filter(Boolean).join('  ');
   return `
-    <a class="card" href="anime.html?id=${m.id}" style="--c:${color}">
+    <a class="card${nsfw(m)}" href="anime.html?id=${m.id}" style="--c:${color}">
       <div class="poster">
         <img src="${m.coverImage?.large}" alt="" loading="lazy">
         ${m.averageScore ? `<span class="score">${m.averageScore}</span>` : ''}
         ${entry ? `<span class="ribbon s-${entry.status}">${STATUS[entry.status]}</span>` : ''}
+        ${m.isAdult ? '<span class="adult-badge">18+</span>' : ''}
       </div>
       <b>${esc(title(m))}</b>
-      <small>${esc(meta)}</small>
+      <small>${esc(meta)}</small>${extra}
     </a>`;
 }
 

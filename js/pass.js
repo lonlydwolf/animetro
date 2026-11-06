@@ -1,5 +1,6 @@
-import { gql, me, title, CARD, listStatus, saveEntries, clientId, setClientId, loginUrl, useUsername, logout } from './api.js';
-import { header, $, esc, card, minutes, toast, fail } from './ui.js';
+import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin } from './api.js';
+import { header, $, esc, toast, fail } from './ui.js';
+import { ride, TIERS } from './score.js';
 
 header();
 const page = $('#page');
@@ -33,15 +34,16 @@ async function boot() {
   const user = await me();
   if (!user) return connect();
   const d = await gql(`query($u:Int){
-    User(id:$u){ createdAt statistics{anime{ count episodesWatched minutesWatched meanScore genres(limit:6,sort:COUNT_DESC){ genre count } statuses{ status count } }} }
+    User(id:$u){ createdAt statistics{anime{ count episodesWatched minutesWatched meanScore statuses{ status count }
+      genres(limit:30,sort:COUNT_DESC){ genre count } formats{ format count } releaseYears{ releaseYear count } lengths{ length count }
+      countries{ country count } studios(limit:1,sort:COUNT_DESC){ count } }} }
     current: Page(perPage:12){ mediaList(userId:$u,type:ANIME,status:CURRENT,sort:UPDATED_TIME_DESC){ progress media{ id episodes title{english romaji} coverImage{medium color} nextAiringEpisode{episode timeUntilAiring} } } }
-    loved: Page(perPage:12){ mediaList(userId:$u,type:ANIME,status:COMPLETED,sort:SCORE_DESC){ score media{ id title{english romaji}
-      recommendations(perPage:8,sort:RATING_DESC){ nodes{ rating mediaRecommendation{ ${CARD} } } } } } }
   }`, { u: user.id });
 
   const s = d.User.statistics.anime;
   const planned = s.statuses.find(x => x.status === 'PLANNING')?.count || 0;
-  const genres = s.genres;
+  const genres = s.genres.slice(0, 6);
+  const rank = ride(s);
   const top = genres[0]?.genre;
   const [persona, blurb] = PERSONA[top] || ['The Commuter', 'Keep riding and your anime personality will show up here.'];
   const pc = PROFILE[user.options?.profileColor] || user.options?.profileColor || '#3db4f2';
@@ -50,7 +52,7 @@ async function boot() {
   page.innerHTML = `
     <div class="pass-grid">
       <div class="ic" style="--pc:${esc(pc)}">
-        <div class="ic-top"><span>Animetro pass</span><i class="ic-chip"></i></div>
+        <div class="ic-top"><span>Animetro pass</span><span class="ic-tier" style="--tc:${rank.tier.c}">${rank.tier.name}</span><i class="ic-chip"></i></div>
         <div class="ic-who"><img src="${user.avatar.large}" alt=""><div><b>${esc(user.name)}</b>
           <small>Rider since ${new Date(d.User.createdAt * 1000).getFullYear()}${user.canWrite ? '' : ', read only'}</small></div></div>
         <div class="ic-stats">
@@ -73,6 +75,8 @@ async function boot() {
       </div>
     </div>
 
+    ${rankHTML(rank)}
+
     <section>
       <div class="section-head"><h2>Tonight's ride</h2></div>
       <div class="tonight" id="tonight">
@@ -84,15 +88,41 @@ async function boot() {
     ${d.current.mediaList.length ? `<section><div class="section-head"><h2>Currently riding</h2></div><div class="journeys" id="current"></div></section>` : ''}
 
     <section>
-      <div class="section-head"><h2>Picked for you</h2></div>
-      <p class="hint">Recommended by people who loved the same shows you rated highest. Anything already on your list is left out.</p>
-      <div class="grid" id="foryou"><p class="empty">Finding picks…</p></div>
+      <a class="tonight fy-link" href="foryou.html">
+        <div><b>Picked for you</b><p class="hint" style="margin:0">Sequels you skipped, shows that match your taste, hidden gems, and your Planning list ranked by fit.</p></div>
+        <span class="btn">Open For you</span>
+      </a>
     </section>`;
 
   $('#logout').onclick = () => { logout(); location.reload(); };
   $('#pick').onclick = () => pick(user, planned);
   renderCurrent(user, d.current.mediaList);
-  forYou(d.loved.mediaList).catch(e => fail($('#foryou'), e));
+}
+
+function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
+  const got = stamps.filter(x => x.got).length;
+  const INK = ['ginza', 'marunouchi', 'tozai', 'chiyoda', 'hanzomon', 'namboku', 'fukutoshin', 'yurakucho'];
+  return `
+    <section class="rider" style="--tc:${tier.c}">
+      <div class="section-head"><h2>Rider rank</h2><span class="hint" style="margin:0">${points.toLocaleString()} ride points</span></div>
+      <div class="rank-card">
+        <div class="rank-now"><small lang="ja">${tier.jp}</small><b>${tier.name}</b></div>
+        <div class="rank-progress">
+          <div class="bar big" role="progressbar" aria-valuenow="${Math.round(pct * 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to next tier"><i style="width:${pct * 100}%"></i></div>
+          <p>${next ? `<b>${(next.at - points).toLocaleString()}</b> points to <b style="color:${next.c}">${next.name}</b> <span lang="ja">${next.jp}</span>` : 'Top of the line. There is no next stop, only stars.'}</p>
+        </div>
+      </div>
+      <ol class="tier-line">${TIERS.map((t, j) => `
+        <li class="${j < i ? 'passed' : j === i ? 'now' : ''}" style="--c:${t.c}"><i></i><b>${t.name}</b><small>${t.at.toLocaleString()}</small></li>`).join('')}</ol>
+      <div class="points">${parts.map(([k, v, how]) => `<div><b>${v.toLocaleString()}</b><span>${k}</span><small>${how}</small></div>`).join('')}</div>
+    </section>
+    <section>
+      <div class="section-head"><h2>Station stamps</h2><span class="hint" style="margin:0">${got} of ${stamps.length} collected</span></div>
+      <div class="stamps">${stamps.map((x, j) => `
+        <div class="stamp${x.got ? ' got' : ''}" style="--c:var(--${INK[j % INK.length]});--r:${((j * 37) % 24) - 12}deg">
+          <span class="ink" lang="ja" aria-hidden="true">${x.k}</span><b>${x.name}</b><small>${x.got ? 'Collected' : x.how}</small>
+        </div>`).join('')}</div>
+    </section>`;
 }
 
 function renderCurrent(user, list) {
@@ -106,7 +136,7 @@ function renderCurrent(user, list) {
         <div><a href="anime.html?id=${m.id}" style="text-decoration:none"><b>${esc(title(m))}</b></a>
           <div class="bar"><i style="width:${total ? Math.min(100, (progress / total) * 100) : 0}%"></i></div>
           <small>Episode <span data-progress>${progress}</span>${total ? ` of ${total}` : ''}</small></div>
-        ${user.canWrite ? `<button class="tag add" data-plus="${m.id}" data-total="${total}">+1</button>` : ''}
+        ${user.canWrite && (!total || progress < total) ? `<button class="tag add" data-plus="${m.id}" data-total="${total}">+1</button>` : ''}
       </div>`;
   }).join('');
   el.addEventListener('click', async e => {
@@ -118,29 +148,10 @@ function renderCurrent(user, list) {
       await saveEntries([{ mediaId: +b.dataset.plus, progress, ...(total && progress >= total ? { status: 'COMPLETED' } : {}) }]);
       span.textContent = progress;
       b.closest('.journey').querySelector('.bar i').style.width = `${total ? Math.min(100, (progress / total) * 100) : 0}%`;
+      if (total && progress >= total) b.remove();
       toast(total && progress >= total ? 'Completed. End of the line!' : `Episode ${progress} logged`);
     } catch (err) { toast(err.message); }
   });
-}
-
-async function forYou(loved) {
-  const pool = new Map();
-  loved.forEach(({ score, media }, i) => {
-    const weight = (score || 70 - i) / 10; // unscored lists still get a gentle preference for the top
-    for (const n of media.recommendations.nodes) {
-      const r = n.mediaRecommendation;
-      if (!r || r.isAdult || n.rating <= 0) continue;
-      const p = pool.get(r.id) || { media: r, score: 0, because: [] };
-      p.score += weight * Math.log2(n.rating + 1);
-      p.because.push(title(media));
-      pool.set(r.id, p);
-    }
-  });
-  const ranked = [...pool.values()].sort((a, b) => b.score - a.score).slice(0, 60);
-  const list = await listStatus(ranked.map(p => p.media.id));
-  const picks = ranked.filter(p => !list.has(p.media.id)).slice(0, 18);
-  $('#foryou').innerHTML = picks.map(p => card(p.media).replace('</small>', `</small><span class="because">Because you liked ${esc(p.because[0])}${p.because.length > 1 ? ` and ${p.because.length - 1} more` : ''}</span>`)).join('')
-    || '<p class="empty">Complete and score a few shows on AniList and picks will appear here.</p>';
 }
 
 async function pick(user, total) {
@@ -167,16 +178,20 @@ function connect() {
       <h1 style="font-size:clamp(2rem,5vw,3.4rem)">Get your pass</h1>
       <p class="hint" style="font-size:1rem;max-width:60ch">Connect AniList to see your progress on every watch-order line, get picks based on what you loved, and add shows to your lists from here.</p>
       <div class="connect">
-        <div>
+        ${builtInLogin() ? `<div>
           <h3>Log in with AniList</h3>
-          <p class="hint" style="margin:0">Lets Animetro update your lists. AniList needs a free client ID from you once:</p>
+          <p class="hint" style="margin:0">AniList asks you to approve Animetro, then sends you straight back. Animetro can then update your lists. You can revoke it any time in your AniList settings under Apps.</p>
+          <a class="btn" href="${esc(loginUrl())}" style="justify-self:start">Log in with AniList</a>
+        </div>` : `<div>
+          <h3>Log in with AniList</h3>
+          <p class="hint" style="margin:0">Lets Animetro update your lists. On this address AniList needs a free client ID from you once:</p>
           <ol>
             <li>Open <a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a> and choose Create new client.</li>
             <li>Name it anything. Set the redirect URL to <code>${esc(redirect)}</code></li>
             <li>Paste the client ID it gives you below.</li>
           </ol>
           <form id="oauth"><input name="client" inputmode="numeric" placeholder="Client ID" value="${esc(clientId())}" required><button class="btn">Log in with AniList</button></form>
-        </div>
+        </div>`}
         <div>
           <h3>Just use a username</h3>
           <p class="hint" style="margin:0">No setup needed. Read only: you'll see your progress and picks, but can't change your lists. Your AniList list must be public.</p>
@@ -185,7 +200,7 @@ function connect() {
       </div>
       <p class="hint" style="margin-top:24px">Only your login token or username is saved, in this browser. Everything else is fetched live from AniList.</p>
     </section>`;
-  $('#oauth').onsubmit = e => { e.preventDefault(); setClientId(e.target.client.value); location.href = loginUrl(); };
+  if ($('#oauth')) $('#oauth').onsubmit = e => { e.preventDefault(); setClientId(e.target.client.value); location.href = loginUrl(); };
   $('#uname').onsubmit = async e => {
     e.preventDefault();
     useUsername(e.target.name.value);

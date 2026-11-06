@@ -48,8 +48,8 @@ export async function crawl(rootId, fetchMany, onProgress = () => {}) {
 }
 
 // ---- figure out what each stop is ---------------------------------------
-export function classify(rootId, { media, want, expanded }) {
-  const all = [...media.values()].filter(m => m && !m.isAdult && m.format !== 'MUSIC');
+export function classify(rootId, { media, want, expanded }, { adult = false } = {}) {
+  const all = [...media.values()].filter(m => m && (adult || !m.isAdult) && m.format !== 'MUSIC');
   if (!all.length) throw new Error('That series could not be found on AniList.');
   const byId = new Map(all.map(m => [m.id, m]));
   const inbound = new Map(all.map(m => [m.id, new Set()]));

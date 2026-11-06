@@ -28,6 +28,7 @@
             <option value="2000-2010">2000s</option><option value="2010-2020">2010s</option><option value="2020-2100">2020s</option>
           </select></label>
           <label>Ticket class<select id="ticket"></select></label>
+          <label class="check" id="fresh-wrap" hidden><input type="checkbox" id="fresh"> <span>Only shows new to me</span></label>
           <div style="display:flex;gap:10px">
             <button class="btn" id="one" style="flex:1">Pull ×1</button>
             <button class="btn ghost" id="ten" style="flex:1">Pull ×10</button>
@@ -42,7 +43,7 @@
       </div>
       <div>
         <h1 style="font-size:clamp(1.8rem,4vw,2.8rem)">Anime gacha</h1>
-        <p class="hint">Can't decide? Turn the knob. Every pull is a random show that at least 2,500 AniList users have watched or planned. Pulls aren't saved anywhere.</p>
+        <p class="hint">Can't decide? Turn the knob. Every pull is a random show that at least 2,500 AniList users have watched or planned (300 for 18+ pulls). Pulls aren't saved anywhere.</p>
         <div id="pulls" class="pulls"></div>
       </div>
     </div>

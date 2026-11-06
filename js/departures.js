@@ -1,4 +1,4 @@
-import { gql, me, title, listStatus } from './api.js';
+import { gql, me, title, listStatus, prefs } from './api.js';
 import { header, $, esc, countdown } from './ui.js';
 
 header();
@@ -18,7 +18,7 @@ async function load() {
   const page = n => `p${n}: Page(page:${n},perPage:50){ pageInfo{hasNextPage} airingSchedules(airingAt_greater:$from,airingAt_lesser:$to,sort:TIME){
     episode airingAt media{ id isAdult popularity episodes format title{english romaji} coverImage{medium} } } }`;
   const d = await gql(`query($from:Int,$to:Int){ ${page(1)} ${page(2)} }`, { from, to });
-  rows = [...d.p1.airingSchedules, ...d.p2.airingSchedules].filter(a => !a.media.isAdult);
+  rows = [...d.p1.airingSchedules, ...d.p2.airingSchedules].filter(a => !a.media.isAdult || prefs.adult());
   list = await listStatus(rows.map(a => a.media.id));
   render();
 }

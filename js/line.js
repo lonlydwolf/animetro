@@ -1,5 +1,5 @@
-import { gql, title, listStatus, me, saveEntries, rankSearch } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail } from './ui.js';
+import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg } from './api.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE } from './order.js';
 
 header();
@@ -49,7 +49,7 @@ function render() {
         <span class="node" aria-hidden="true"></span>
         ${i === hereIdx ? '<span class="you">You are here</span>' : ''}
         <div class="stop-body">
-          <a href="anime.html?id=${m.id}" class="stop-link">
+          <a href="anime.html?id=${m.id}" class="stop-link${nsfw(m)}">
             <img src="${m.coverImage.large}" alt="" loading="lazy">
             <span>
               <b>${esc(title(m))}</b>
@@ -117,7 +117,7 @@ async function plan(ids) {
 async function boot() {
   let id = +qs().get('id');
   if (!id && qs().get('q')) {
-    const d = await gql(`query($s:String){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:false){id popularity title{english romaji}}}}`, { s: qs().get('q') });
+    const d = await gql(`query($s:String,$a:Boolean){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:$a){id popularity title{english romaji}}}}`, { s: qs().get('q'), a: adultArg() });
     id = rankSearch(d.Page.media, qs().get('q'))[0]?.id;
     if (!id) throw new Error(`No series called "${qs().get('q')}" found. Try the English or Japanese title.`);
     history.replaceState(null, '', `line.html?id=${id}`);
@@ -125,7 +125,7 @@ async function boot() {
   if (!id) { location.href = 'index.html'; return; }
   const fetchMany = ids => gql(`query($ids:[Int]){Page(perPage:50){media(id_in:$ids,type:ANIME){${FIELDS}}}}`, { ids }).then(d => d.Page.media);
   const graph = await crawl(id, fetchMany, n => ($('#found').textContent = `${n} stop${n === 1 ? '' : 's'} found`));
-  const { stops, transfers, anchor } = classify(id, graph);
+  const { stops, transfers, anchor } = classify(id, graph, { adult: prefs.adult() });
   const [user, list] = await Promise.all([me(), listStatus([...stops, ...transfers].map(m => m.id))]);
   data = { stops, transfers, anchor, list, user, capped: graph.capped };
 

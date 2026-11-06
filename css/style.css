@@ -61,7 +61,7 @@ section { margin-top: 56px; }
 .brand-name { font: 400 1.25rem var(--display); }
 .top nav { display: flex; gap: 4px; }
 .top nav a, .pass-link {
-  text-decoration: none; color: var(--dim); padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: .95rem;
+  text-decoration: none; color: var(--dim); padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: .95rem; white-space: nowrap;
 }
 .top nav a:hover, .pass-link:hover { color: var(--ink); }
 .top nav a[aria-current], .pass-link[aria-current] { color: var(--night); background: var(--platform); }
@@ -72,8 +72,14 @@ section { margin-top: 56px; }
 }
 .top-search input:focus, .field:focus { border-color: var(--platform); }
 .pass-link { display: flex; align-items: center; gap: 8px; }
-.top-search + .pass-link { margin-left: 0; }
-.top nav + .pass-link { margin-left: auto; }
+.top-end { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.top-search + .top-end { margin-left: 0; }
+.adult-pill {
+  border: 1px dashed var(--rail); background: none; color: var(--dim); border-radius: 99px; padding: 4px 9px;
+  font: 400 .72rem var(--display); cursor: pointer; text-decoration: line-through;
+}
+.adult-pill:hover { color: var(--ink); border-color: var(--dim); }
+.adult-pill[aria-pressed=true] { background: var(--marunouchi); border: 1px solid var(--marunouchi); color: #fff; text-decoration: none; }
 .pass-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--rail) center/cover; display: none; }
 .pass-avatar.on { display: block; }
 
@@ -439,13 +445,94 @@ section { margin-top: 56px; }
 .tonight div { flex: 1; min-width: 200px; }
 .tonight b { font: 400 1.4rem/1.2 var(--display); display: block; margin-bottom: 6px; }
 
+/* ---------- 18+ ---------- */
+.gate {
+  max-width: 460px; width: calc(100% - 32px); border: 0; border-radius: 22px; padding: 28px;
+  background: var(--tunnel); color: var(--ink); box-shadow: 0 0 0 1px var(--rail), 0 40px 80px #000b;
+}
+.gate::backdrop { background: #070a1acc; backdrop-filter: blur(6px); }
+.gate form { display: grid; gap: 14px; }
+.gate .roundel { border-color: var(--marunouchi); width: 48px; height: 48px; font-size: 15px; border-width: 7px; }
+.gate p { color: var(--dim); margin: 0; }
+.gate-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+.check { display: flex !important; gap: 10px; align-items: flex-start; cursor: pointer; color: var(--ink) !important; font-weight: 500 !important; }
+.check input { accent-color: var(--platform); width: 18px; height: 18px; margin: 3px 0 0; flex: none; }
+.check small { display: block; color: var(--dim); font-size: .8rem; }
+.fresh { background: var(--tunnel); padding: 12px 14px; border-radius: 14px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--platform); cursor: pointer; text-align: left; font-size: .82rem; text-decoration: underline; text-underline-offset: 3px; justify-self: start; margin-top: 6px; }
+.nsfw img { filter: blur(18px) saturate(.6); transition: filter .25s; }
+.nsfw:hover img, .nsfw:focus-visible img, .nsfw:focus-within img { filter: none; }
+.adult-badge { position: absolute; top: 8px; left: 8px; background: var(--marunouchi); color: #fff; font: 400 .7rem var(--display); padding: 3px 7px; border-radius: 6px; }
+/* "Last train": the 18+ ticket swaps platform yellow for red-lantern red */
+body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10%, #3a0f2a 0%, var(--night) 55%) fixed; }
+
+/* ---------- for you ---------- */
+.fy-hero { margin-top: 48px; }
+.fy-hero h1 { font-size: clamp(2.2rem, 6vw, 4rem); }
+.fy-taste { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--dim); margin: 18px 0 0; }
+.fy-taste .tag { text-decoration: none; box-shadow: inset 0 0 0 1px var(--platform); background: transparent; color: var(--platform); }
+.fy-taste .tag:hover { background: var(--platform); color: var(--night); }
+.fy-link { text-decoration: none; justify-content: space-between; }
+.fy-link:hover { background: var(--rail); }
+.fy-link div { flex: 1; }
+.match { display: block; margin-top: 6px; font-size: .76rem; color: var(--dim); }
+.match b { display: inline-block; margin: 0 6px 0 0; font: 400 .74rem var(--display); color: var(--night); padding: 2px 8px; border-radius: 99px;
+  background: color-mix(in srgb, var(--platform) calc(var(--m) * 1%), var(--hibiya)); }
+.match i { font-style: normal; }
+.card .match b { -webkit-line-clamp: unset; }
+
+/* ---------- rider rank ---------- */
+.ic-tier { margin-left: auto; margin-right: 14px; font: 400 .72rem var(--display) !important; padding: 3px 10px; border-radius: 99px; background: #0005; box-shadow: inset 0 0 0 2px var(--tc); }
+.rank-card { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; background: var(--tunnel); border-radius: 18px; padding: 22px 26px; box-shadow: inset 6px 0 0 var(--tc); }
+.rank-now small { display: block; color: var(--tc); font-weight: 700; letter-spacing: .1em; }
+.rank-now b { font: 400 clamp(1.5rem, 3.4vw, 2.3rem)/1.1 var(--display); }
+.rank-progress p { margin: 8px 0 0; color: var(--dim); }
+.rank-progress p b { color: var(--ink); }
+.bar.big { height: 16px; }
+.bar.big i { background: linear-gradient(90deg, var(--tc), color-mix(in srgb, var(--tc) 60%, #fff)); animation: fill 1.4s cubic-bezier(.2, .8, .2, 1); }
+@keyframes fill { from { width: 0; } }
+.tier-line { list-style: none; padding: 34px 0 6px; margin: 0; display: grid; grid-template-columns: repeat(8, minmax(84px, 1fr)); overflow-x: auto; position: relative; }
+.tier-line li { position: relative; text-align: center; font-size: .78rem; color: var(--dim); }
+.tier-line li::before { content: ''; position: absolute; top: 9px; left: 0; right: 0; height: 6px; background: var(--rail); }
+.tier-line li:first-child::before { left: 50%; } .tier-line li:last-child::before { right: 50%; }
+.tier-line li.passed::before, .tier-line li.now::before { background: var(--c); }
+.tier-line li.now::before { background: linear-gradient(90deg, var(--c) 50%, var(--rail) 50%); }
+.tier-line i { position: relative; display: block; width: 24px; height: 24px; margin: 0 auto 8px; border-radius: 50%; background: var(--night); box-shadow: inset 0 0 0 5px var(--rail); }
+.tier-line .passed i { box-shadow: inset 0 0 0 5px var(--c); }
+.tier-line .now i { box-shadow: inset 0 0 0 6px var(--c), 0 0 0 6px color-mix(in srgb, var(--c) 30%, transparent); animation: pulse 1.6s infinite; }
+.tier-line b { display: block; color: var(--ink); font-weight: 700; line-height: 1.25; }
+.tier-line li:not(.passed):not(.now) b { color: var(--dim); }
+@keyframes pulse { 50% { box-shadow: inset 0 0 0 6px var(--c), 0 0 0 11px color-mix(in srgb, var(--c) 10%, transparent); } }
+.points { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
+.points div { background: var(--tunnel); border-radius: 14px; padding: 14px 16px; }
+.points b { font: 400 1.4rem var(--display); display: block; }
+.points span { display: block; font-weight: 700; }
+.points small { color: var(--dim); }
+.stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 22px 14px; }
+.stamp { text-align: center; display: grid; justify-items: center; gap: 2px; }
+.stamp .ink {
+  width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 8px;
+  font: 400 2.3rem var(--display); color: var(--rail); border: 3px dashed var(--rail);
+}
+.stamp.got .ink {
+  color: var(--c); border: 5px double var(--c); transform: rotate(var(--r));
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 14%, transparent) 60%, transparent 61%);
+  animation: stamp .5s cubic-bezier(.3, 1.6, .5, 1) backwards;
+}
+.stamp:nth-child(4n+2) .ink { animation-delay: .08s; } .stamp:nth-child(4n+3) .ink { animation-delay: .16s; } .stamp:nth-child(4n) .ink { animation-delay: .24s; }
+@keyframes stamp { from { transform: scale(1.6) rotate(0); opacity: 0; } }
+.stamp b { font-size: .92rem; line-height: 1.25; }
+.stamp small { color: var(--dim); font-size: .78rem; line-height: 1.35; }
+.stamp:not(.got) b { color: var(--dim); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .top { position: relative; flex-wrap: wrap; gap: 10px 14px; padding: 10px 16px; }
   .top nav { order: 3; width: 100%; overflow-x: auto; }
   .top-search { order: 4; max-width: none; flex-basis: 100%; }
   .brand-name { display: none; }
-  .top nav + .pass-link, .top-search + .pass-link { margin-left: auto; }
+  .top-search + .top-end { margin-left: auto; }
+  .rank-card { grid-template-columns: 1fr; gap: 14px; }
   main { padding: 0 16px 60px; }
   .line-layout, .anime-body, .explore, .gacha, .pass-grid, .connect { grid-template-columns: 1fr; gap: 28px; }
   .planner, .filters { position: static; max-height: none; }

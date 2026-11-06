@@ -1,4 +1,4 @@
-import { gql, me, title, CARD } from './api.js';
+import { gql, me, title, CARD, prefs, adultArg } from './api.js';
 import { header, searchBox, $, esc, cards, countdown, fail } from './ui.js';
 
 header();
@@ -15,6 +15,7 @@ const MOODS = [
   ['namboku', 'N', 'Other worlds', 'Isekai and beyond', 'tags=Isekai&sort=POPULARITY_DESC'],
   ['fukutoshin', 'F', 'Night shift', 'Horror and dread', 'genres=Horror&sort=SCORE_DESC'],
   ['hibiya', 'H', 'Underdogs', 'Sports, sweat, comebacks', 'genres=Sports&sort=SCORE_DESC'],
+  ...(prefs.adult() ? [['marunouchi', 'L', 'Last train', 'Hentai and 18+, after dark', 'ticket=adult&sort=POPULARITY_DESC']] : []),
 ];
 $('#moods').innerHTML = MOODS.map(([c, l, name, blurb, q]) => `
   <a class="mood" href="explore.html?${q}" style="--c:var(--${c})">
@@ -23,12 +24,12 @@ $('#moods').innerHTML = MOODS.map(([c, l, name, blurb, q]) => `
   </a>`).join('');
 
 const now = Math.floor(Date.now() / 1000);
-gql(`query($now:Int){
-  trending: Page(perPage:14){ media(type:ANIME,sort:TRENDING_DESC,isAdult:false){ ${CARD} } }
+gql(`query($now:Int,$a:Boolean){
+  trending: Page(perPage:14){ media(type:ANIME,sort:TRENDING_DESC,isAdult:$a){ ${CARD} } }
   soon: Page(perPage:40){ airingSchedules(airingAt_greater:$now,sort:TIME){ episode airingAt media{ id isAdult popularity episodes title{english romaji} coverImage{medium color} } } }
-}`, { now }).then(async d => {
+}`, { now, a: adultArg() }).then(async d => {
   await cards($('#trending'), d.trending.media);
-  const soon = d.soon.airingSchedules.filter(a => !a.media.isAdult && a.media.popularity > 8000).slice(0, 4);
+  const soon = d.soon.airingSchedules.filter(a => (!a.media.isAdult || prefs.adult()) && a.media.popularity > 8000).slice(0, 4);
   $('#soon').innerHTML = soon.map(a => `
     <a class="journey" href="anime.html?id=${a.media.id}" style="--c:${a.media.coverImage.color || 'var(--led)'}">
       <img src="${a.media.coverImage.medium}" alt="" loading="lazy">

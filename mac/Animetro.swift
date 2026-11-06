@@ -1,0 +1,152 @@
+// Animetro for macOS: the web app in a native window, no server.
+// The HTML/JS/CSS ship inside the app and load through an animetro:// scheme
+// (ES modules refuse to load from file://). AniList login redirects to animetro://auth,
+// which this window catches before it goes anywhere.
+import Cocoa
+import WebKit
+import UniformTypeIdentifiers
+
+let web = Bundle.main.resourceURL!.appendingPathComponent("web").standardizedFileURL
+let home = URL(string: "animetro://app/index.html")!
+
+// Serves files from Contents/Resources/web for animetro://app/<path>.
+final class Files: NSObject, WKURLSchemeHandler {
+  func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+    let url = task.request.url!
+    let path = url.path.isEmpty || url.path == "/" ? "index.html" : String(url.path.dropFirst())
+    let file = web.appendingPathComponent(path).standardizedFileURL
+    guard file.path.hasPrefix(web.path + "/"), let data = try? Data(contentsOf: file) else {
+      task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: [:])!)
+      task.didFinish()
+      return
+    }
+    let type = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+    task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                                    headerFields: ["Content-Type": type, "Content-Length": "\(data.count)", "Cache-Control": "no-store"])!)
+    task.didReceive(data)
+    task.didFinish()
+  }
+  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+}
+
+final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
+  var window: NSWindow!
+  var view: WKWebView!
+  var titleWatch: NSKeyValueObservation?
+  let selfTest = ProcessInfo.processInfo.environment["ANIMETRO_SELFTEST"] != nil
+
+  func applicationDidFinishLaunching(_ note: Notification) {
+    let config = WKWebViewConfiguration()
+    config.setURLSchemeHandler(Files(), forURLScheme: "animetro")
+    config.websiteDataStore = .default() // keeps your login and settings between launches
+    view = WKWebView(frame: .zero, configuration: config)
+    view.navigationDelegate = self
+    view.uiDelegate = self
+    view.allowsBackForwardNavigationGestures = true
+    view.setValue(false, forKey: "drawsBackground") // no white flash before the dark page paints
+
+    window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
+                      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+    window.title = "Animetro"
+    window.titlebarAppearsTransparent = true
+    window.backgroundColor = NSColor(red: 0x13 / 255, green: 0x18 / 255, blue: 0x33 / 255, alpha: 1)
+    window.appearance = NSAppearance(named: .darkAqua)
+    window.minSize = NSSize(width: 420, height: 500)
+    window.contentView = view
+    window.center()
+    window.setFrameAutosaveName("Animetro")
+    window.makeKeyAndOrderFront(nil)
+    titleWatch = view.observe(\.title) { [weak self] v, _ in self?.window.title = v.title?.isEmpty == false ? v.title! : "Animetro" }
+
+    NSApp.mainMenu = menu()
+    view.load(URLRequest(url: home))
+    NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
+
+  // Stay inside the app for Animetro pages and AniList login; open everything else in your browser.
+  func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+    guard let url = action.request.url else { return decisionHandler(.cancel) }
+    if url.scheme == "animetro" && url.host == "auth" {
+      // AniList sends the token here as #access_token=...; api.js picks it up from pass.html's hash.
+      var page = URLComponents(string: "animetro://app/pass.html")!
+      page.fragment = url.fragment ?? URLComponents(url: url, resolvingAgainstBaseURL: false)?.query
+      webView.load(URLRequest(url: page.url!))
+      return decisionHandler(.cancel)
+    }
+    let mainFrame = action.targetFrame?.isMainFrame ?? true
+    if url.scheme == "animetro" || !mainFrame || url.host == "anilist.co" || url.scheme == "about" {
+      return decisionHandler(.allow)
+    }
+    NSWorkspace.shared.open(url)
+    decisionHandler(.cancel)
+  }
+
+  // target="_blank" links (streaming sites, AniList profile) go to your browser.
+  func webView(_ webView: WKWebView, createWebViewWith config: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+    if let url = action.request.url { NSWorkspace.shared.open(url) }
+    return nil
+  }
+
+  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    guard selfTest else { return }
+    // ANIMETRO_SELFTEST=1: check the page booted, storage works and AniList answers, print JSON, quit.
+    let js = """
+      await new Promise(r => setTimeout(r, 4000));
+      localStorage.setItem('animetro.selftest', '1');
+      const stored = localStorage.getItem('animetro.selftest') === '1';
+      localStorage.removeItem('animetro.selftest');
+      const api = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
+      return JSON.stringify({ header: !!document.querySelector('header.top'), moods: document.querySelectorAll('.mood').length,
+        trending: document.querySelectorAll('#trending .card').length, stored, api, title: document.title });
+      """
+    webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { result in
+      switch result {
+      case .success(let value): print(value as? String ?? "\(value ?? "nil")")
+      case .failure(let error): print("{\"error\": \"\(error.localizedDescription)\"}")
+      }
+      exit(0)
+    }
+  }
+
+  @objc func goHome() { view.load(URLRequest(url: home)) }
+  @objc func goBack() { view.goBack() }
+  @objc func goForward() { view.goForward() }
+  @objc func reload() { view.reload() }
+  @objc func find() { view.evaluateJavaScript("document.querySelector('.top-search input, #q')?.focus()") }
+
+  func menu() -> NSMenu {
+    let bar = NSMenu()
+    func add(_ title: String, _ items: [NSMenuItem]) {
+      let top = NSMenuItem(), sub = NSMenu(title: title)
+      items.forEach(sub.addItem)
+      top.submenu = sub
+      bar.addItem(top)
+    }
+    func item(_ title: String, _ action: Selector?, _ key: String, _ mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+      let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+      i.keyEquivalentModifierMask = mods
+      return i
+    }
+    add("Animetro", [item("About Animetro", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), ""), .separator(),
+                     item("Hide Animetro", #selector(NSApplication.hide(_:)), "h"),
+                     item("Quit Animetro", #selector(NSApplication.terminate(_:)), "q")])
+    // Without an Edit menu, ⌘C / ⌘V don't work in text fields.
+    add("Edit", [item("Undo", Selector(("undo:")), "z"), item("Redo", Selector(("redo:")), "z", [.command, .shift]), .separator(),
+                 item("Cut", #selector(NSText.cut(_:)), "x"), item("Copy", #selector(NSText.copy(_:)), "c"),
+                 item("Paste", #selector(NSText.paste(_:)), "v"), item("Select All", #selector(NSText.selectAll(_:)), "a")])
+    add("Go", [item("Home", #selector(goHome), "h", [.command, .shift]), item("Find a Series", #selector(find), "f"),
+               item("Back", #selector(goBack), "["), item("Forward", #selector(goForward), "]"), item("Reload", #selector(reload), "r")])
+    add("Window", [item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"), item("Zoom", #selector(NSWindow.performZoom(_:)), ""),
+                   item("Close", #selector(NSWindow.performClose(_:)), "w")])
+    return bar
+  }
+}
+
+let app = NSApplication.shared
+let delegate = App()
+app.delegate = delegate
+app.setActivationPolicy(.regular)
+app.run()
