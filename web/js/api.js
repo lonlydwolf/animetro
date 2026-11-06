@@ -2,21 +2,28 @@
 // your login token / username (localStorage) and a per-tab copy of your profile
 // (sessionStorage) so each page doesn't spend a request asking "who am I?".
 const API = 'https://graphql.anilist.co';
-const KEY = { token: 'animetro.token', client: 'animetro.client', user: 'animetro.user', me: 'animetro.me', adult: 'animetro.adult', blur: 'animetro.blur' };
-
-// AniList implicit-grant login lands back here with #access_token=...
-const hash = new URLSearchParams(location.hash.slice(1));
-if (hash.get('access_token')) {
-  localStorage.setItem(KEY.token, hash.get('access_token'));
-  localStorage.removeItem(KEY.user);
-  sessionStorage.removeItem(KEY.me);
-  history.replaceState(null, '', location.pathname + location.search);
-}
+const KEY = { token: 'animetro.token', client: 'animetro.client', user: 'animetro.user', me: 'animetro.me', adult: 'animetro.adult', blur: 'animetro.blur', state: 'animetro.loginState' };
 
 const store = {
   get: (k, s = localStorage) => { try { return s.getItem(k); } catch { return null; } },
   set: (k, v, s = localStorage) => { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} },
 };
+
+// AniList implicit-grant login lands back here with #access_token=...&state=...
+// Only a login this app started is accepted: the state must match the one-time value loginUrl() made,
+// so a crafted link can't quietly swap in someone else's account.
+export let loginRejected = false;
+const hash = new URLSearchParams(location.hash.slice(1));
+if (hash.get('access_token')) {
+  const expected = store.get(KEY.state);
+  store.set(KEY.state, null);
+  if (expected && hash.get('state') === expected) {
+    store.set(KEY.token, hash.get('access_token'));
+    store.set(KEY.user, null);
+    store.set(KEY.me, null, sessionStorage);
+  } else loginRejected = true;
+  history.replaceState(null, '', location.pathname + location.search); // never leave a token in the address bar
+}
 export const token = () => store.get(KEY.token);
 // Running inside the macOS app (pages load from animetro://) rather than a browser.
 export const inApp = location.protocol === 'animetro:';
@@ -146,7 +153,9 @@ export function useUsername(name) {
 }
 export function setClientId(id) { store.set(KEY.client, id.trim()); }
 export function loginUrl() {
-  return `https://anilist.co/api/v2/oauth/authorize?client_id=${encodeURIComponent(clientId())}&response_type=token`;
+  const state = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+  store.set(KEY.state, state);
+  return `https://anilist.co/api/v2/oauth/authorize?client_id=${encodeURIComponent(clientId())}&response_type=token&state=${state}`;
 }
 export function logout() {
   [KEY.token, KEY.user].forEach(k => store.set(k, null));

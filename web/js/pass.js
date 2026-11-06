@@ -1,4 +1,4 @@
-import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp } from './api.js';
+import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected } from './api.js';
 import { header, $, esc, toast, fail, cover, tint, safeUrl } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
@@ -229,4 +229,5 @@ function connect() {
   };
 }
 
+if (loginRejected) toast("Ignored a login link this app didn't start. Log in from this page instead.");
 boot().catch(e => fail(page, e));

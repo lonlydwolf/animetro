@@ -12,7 +12,12 @@ export default [
     languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: globals.browser },
   },
   {
-    files: ['tests/**/*.mjs', 'eslint.config.js'],
+    files: ['eslint.config.js'],
     languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: globals.node },
+  },
+  {
+    // tests run in Node but stand in for the browser (tests/setup.mjs), so both sets of globals apply
+    files: ['tests/**/*.mjs'],
+    languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: { ...globals.node, ...globals.browser } },
   },
 ];
