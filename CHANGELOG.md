@@ -13,6 +13,21 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Releases are only built after the full CI passes.
 - CONTRIBUTING, SECURITY, issue and pull request templates, `.editorconfig`.
 
+### Security
+- Values from AniList are escaped and validated before they go into the page (only plain https addresses and hex colors), closing a script-injection path that could read stored logins.
+- AniList logins are only accepted if the app started them (OAuth `state`), so a crafted link can't swap in another account.
+- CI scans the whole git history for secrets, not just the commits in each push.
+
+### Fixed
+- Saving several list entries at once no longer reports success when only some were saved.
+- Catching up with an airing show no longer marks it Completed; only reaching the known final episode does.
+- A title without a cover no longer breaks its page.
+- 18+ titles on your own lists stay hidden on Home, My pass and My map while 18+ is off.
+- Gacha counts its pool exactly, so every matching show can be pulled.
+- Clearing the search box no longer brings back stale suggestions.
+- The Mac app smoke test fails when the page didn't actually load.
+- The README now says exactly what Disconnect clears.
+
 ## [1.0.0] - 2026-11-06
 
 ### Added
