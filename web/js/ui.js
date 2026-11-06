@@ -6,7 +6,7 @@ export const qs = () => new URLSearchParams(location.search);
 
 // Values from AniList that end up in attributes or CSS. Only plain https addresses and hex colors get through,
 // so a malformed or hostile value can't break out of the attribute; missing values fall back quietly.
-const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // 1x1 transparent GIF
 export const safeUrl = u => (/^https:\/\/[^\s"'()<>\\]+$/i.test(u || '') ? esc(u) : '');
 export const safeColor = (c, fallback = 'var(--rail)') => (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : fallback);
 export const cover = (m, size = 'large') => safeUrl(m?.coverImage?.[size] || m?.coverImage?.large || m?.coverImage?.medium) || BLANK;

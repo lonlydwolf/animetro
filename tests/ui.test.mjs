@@ -21,6 +21,11 @@ test('only hex colors get into CSS, anything else falls back', () => {
 
 test('missing covers fall back to a blank image instead of crashing', () => {
   assert.match(cover({ coverImage: null }), /^data:image\/gif/);
+  // the fallback must be a complete image, or browsers show it as broken
+  const gif = Buffer.from(cover({}).split(',')[1], 'base64');
+  assert.match(gif.subarray(0, 6).toString(), /^GIF8[79]a$/);
+  assert.equal(gif.readUInt16LE(6), 1, 'width 1');
+  assert.equal(gif.at(-1), 0x3b, 'ends with the GIF trailer');
   assert.match(cover({}), /^data:image\/gif/);
   assert.equal(cover({ coverImage: { large: 'https://a.co/l.jpg' } }, 'extraLarge'), 'https://a.co/l.jpg');
   assert.equal(tint({ coverImage: null }, '#123'), '#123');
