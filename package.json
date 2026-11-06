@@ -1,0 +1,18 @@
+{
+  "name": "animetro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Anime watch orders as metro lines, with live AniList data. A macOS app and a plain web app.",
+  "license": "MIT",
+  "type": "module",
+  "repository": "github:lonlydwolf/animetro",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 5180 --directory web",
+    "test": "node --test",
+    "build:mac": "./macos/build.sh",
+    "dev:mac": "./macos/dev.sh"
+  }
+}

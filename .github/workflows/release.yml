@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: 20
       - name: Logic checks
-        run: node test/check.mjs
+        run: npm test
       - name: Build the app (Apple Silicon + Intel)
         run: VERSION="${GITHUB_REF_NAME#v}" ./macos/build.sh
       - name: Zip it

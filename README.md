@@ -25,7 +25,7 @@ cd animetro
 
 ```sh
 cd animetro
-python3 -m http.server 5180 --directory web
+python3 -m http.server 5180 --directory web   # or: npm start
 ```
 
 Open http://localhost:5180. It has no build step and no dependencies. Any static file server works, but it has to be a server, because ES modules won't load from `file://`.
@@ -35,10 +35,10 @@ Open http://localhost:5180. It has no build step and no dependencies. Any static
 - Browser: run the server above and reload.
 - Mac app: `./macos/dev.sh` runs the app against the files in `web/`, so an edit only needs **⌘R** in the app. Right-click › **Inspect Element** opens Safari's Web Inspector. Only changes to `macos/Animetro.swift` need a rebuild (the script does it for you).
 
-Run the logic checks (watch order, search ranking, ride points, taste matching, sync, time-fit, finish odds and the metro map) with Node 18+:
+Run the tests (Node 20 or later, no install needed):
 
 ```sh
-node test/check.mjs
+npm test
 ```
 
 ## What's inside
