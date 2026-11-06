@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Logic checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node test/check.mjs
+
+  mac:
+    name: Mac app builds
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./mac/build.sh
+      - name: Both chips in the binary
+        run: lipo -info build/Animetro.app/Contents/MacOS/Animetro | grep -q "x86_64 arm64\|arm64 x86_64"
