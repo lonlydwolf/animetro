@@ -13,7 +13,9 @@ const img = src => new Promise(res => {
   i.crossOrigin = 'anonymous';
   i.onload = () => res(i);
   i.onerror = () => res(null); // a missing picture shouldn't stop the card
-  i.src = src;
+  // The page already showed this picture without CORS, and Chrome reuses that cached copy, which a canvas
+  // may not read. A query string gives the card its own CORS copy (AniList's image server ignores it).
+  i.src = /^https:/.test(src) ? `${src}${src.includes('?') ? '&' : '?'}card` : src;
 });
 
 function canvas() {
