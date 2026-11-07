@@ -72,3 +72,15 @@ test('rewind shows the network as it stood at the end of a year', async () => {
   assert.equal(at(2018).lines.length, 1, 'the estimate only appears from 2019');
   assert.equal(at(2018).siding, 1, 'the siding count doesn\'t depend on the year');
 });
+
+test('rewind starts at the earliest start or finish, and undated announced sequels stay under construction', async () => {
+  const { rewind, firstYear } = await import('../web/js/map.js');
+  const ls = franchises([
+    { status: 'COMPLETED', progress: 12, startedAt: { year: 2015 }, completedAt: { year: 2020 }, media: md(1, 2014, { SEQUEL: [99] }) },
+  ]);
+  assert.equal(firstYear(ls), 2015);
+  assert.deepEqual(rewind(ls, 2015).lines[0].stations.map(s => s.state), ['here', 'soon']);
+  ls[0].stations[1].startDate = {}; // announced, no year yet
+  assert.deepEqual(rewind(ls, 2021).lines[0].stations.map(s => s.state), ['done', 'soon']);
+  assert.ok(rewind(ls, 2021).lines[0].complete, 'still end to end, as it is at Now');
+});

@@ -102,7 +102,7 @@ export function rewind(lines, year) {
       if (s.state === 'done' && !finished) siding++;
       else if (s.state === 'done' && !fuzzy(s.completedAt)) approx++;
       let state;
-      if (s.startDate?.year > year) state = 'soon';
+      if (s.status === 'NOT_YET_RELEASED' || s.startDate?.year > year) state = 'soon';
       else if (s.state === 'done') state = finished && finished <= end ? 'done' : began && began <= end ? 'here' : 'unridden';
       else if (BOARDED.has(s.state)) state = began && began <= end ? s.state : 'unridden';
       else state = 'unridden';
