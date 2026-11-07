@@ -115,7 +115,9 @@ export function rewind(lines, year) {
 
 // The first year anything on your map was finished (for the slider's start), or null.
 export function firstYear(lines) {
-  const years = lines.flatMap(l => l.stations.map(s => s.completedAt?.year || s.startedAt?.year || (s.updatedAt && new Date(s.updatedAt * 1000).getFullYear())).filter(Boolean));
+  // the earliest date on each stop: started or finished; when it was last changed only if neither is set
+  const years = lines.flatMap(l => l.stations.map(s => Math.min(s.startedAt?.year || Infinity, s.completedAt?.year || Infinity)
+    || (s.updatedAt ? new Date(s.updatedAt * 1000).getFullYear() : Infinity)).filter(Number.isFinite));
   return years.length ? Math.min(...years) : null;
 }
 
