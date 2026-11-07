@@ -205,15 +205,21 @@ function renderListControls() {
   });
 }
 
+// One save at a time: the controls are disabled until it lands, so a later click can't be overtaken by an earlier one.
+let saving = false;
 async function save(change) {
+  if (saving) return;
+  saving = true;
+  document.querySelectorAll('#status, #plus, [data-upto]').forEach(b => (b.disabled = true));
   try {
     const d = await saveEntries([{ mediaId: id, ...change }]);
     entry = d.m0;
     chime(entry.status === 'COMPLETED' && entry.progress ? 'done' : 'tick');
     toast(entry.status === 'COMPLETED' ? 'Completed. Where to next?' : `Saved: ${STATUS[entry.status]}, ep ${entry.progress}`);
-    renderListControls();
-    if (eps.rows) drawEps();
   } catch (e) { toast(e.message); }
+  saving = false;
+  renderListControls();
+  if (eps.rows) drawEps();
 }
 
 // ---- Episodes tab ------------------------------------------------------------
