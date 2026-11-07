@@ -201,7 +201,7 @@ function renderListControls() {
       <option value="">Add to list…</option>
       ${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${entry?.status === k ? ' selected' : ''}>${v}</option>`).join('')}
     </select>
-    ${entry ? `<span class="stepper">Ep ${entry.progress}${total ? ` / ${total}` : ''}${entry.progress < Math.min(total || Infinity, airedCount(media)) ? ' <button id="plus" aria-label="Watched one more episode">+1</button>' : ''}</span>` : ''}`;
+    ${entry ? `<span class="stepper">Ep ${entry.progress}${total ? ` / ${total}` : ''}${entry.progress < Math.min(total || Infinity, airedCount(media) ?? Infinity) ? ' <button id="plus" aria-label="Watched one more episode">+1</button>' : ''}</span>` : ''}`;
   $('#status').onchange = e => e.target.value && save({ status: e.target.value, ...(e.target.value === 'COMPLETED' && final ? { progress: final } : {}) });
   $('#plus') && ($('#plus').onclick = () => {
     const progress = entry.progress + 1;
@@ -286,7 +286,7 @@ async function loadEps(from) {
 function drawEps() {
   const progress = entry?.progress || 0, canMark = user?.canWrite;
   eps.rows.forEach(r => (r.state = epState(r, progress)));
-  const when = r => (r.state === 'upcoming' ? (r.at > Date.now() ? `airs in <span data-at="${r.at / 1000}">${countdown(r.at / 1000 - Date.now() / 1000)}</span>` : 'not aired yet')
+  const when = r => (r.state === 'upcoming' ? (r.at > Date.now() ? `airs in <span data-at="${r.at / 1000}">${countdown(r.at / 1000 - Date.now() / 1000)}</span>` : r.unknown ? 'air date unknown' : 'not aired yet')
     : r.at ? new Date(r.at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
   const badge = r => (r.state === 'watched' ? '<span class="tag s-COMPLETED">✓ Watched</span>' : r.state === 'next' ? '<span class="tag next-up">Next up</span>' : r.state === 'upcoming' ? '<span class="tag soon">Upcoming</span>' : '');
   const mark = r => (canMark && r.n > progress && !r.upcoming ? `<button class="tag add" data-upto="${r.n}" title="Set your progress to episode ${r.n}">Watched up to here</button>` : '');
@@ -333,7 +333,7 @@ document.addEventListener('click', e => {
   const up = e.target.closest('[data-upto]');
   if (up) {
     const progress = +up.dataset.upto;
-    if (progress > airedCount(media)) return toast("That episode hasn't aired yet.");
+    if (progress > (airedCount(media) ?? Infinity) || eps.rows?.find(r => r.n === progress)?.upcoming) return toast("That episode hasn't aired yet.");
     save({ progress, ...(finishes(progress, media) ? { status: 'COMPLETED' } : !entry || entry.status === 'PLANNING' ? { status: 'CURRENT' } : {}) });
   }
 });

@@ -45,3 +45,10 @@ test('episodes that have not aired yet are upcoming, even without an air date', 
   assert.ok(unreleased.every(x => x.upcoming), 'no episode of an unreleased show can be marked watched');
   assert.deepEqual(rows({ total: 6, aired: 4, now }).map(x => epState(x, 2)), ['watched', 'watched', 'next', '', 'upcoming', 'upcoming']);
 });
+
+test('airing with no schedule: the aired count is unknown, so only a past air date proves an episode is out', () => {
+  assert.equal(airedCount({ status: 'RELEASING', episodes: 12, nextAiringEpisode: null }), null);
+  assert.equal(airedCount({ status: 'HIATUS', episodes: 12 }), null);
+  const r = rows({ total: 3, aired: null, now, kitsu: [{ number: 1, airdate: '2025-12-01' }, { number: 3, airdate: '2026-03-01' }] });
+  assert.deepEqual(r.map(x => [x.upcoming, x.unknown]), [[false, false], [true, true], [true, false]]);
+});

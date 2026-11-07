@@ -42,12 +42,13 @@ export function rows({ total, kitsu = [], streams = [], schedule = [], aired = I
     const n = i + 1, e = k.get(n), st = s.get(n);
     const t = e?.titles || {};
     const at = air.get(n) ? air.get(n) * 1000 : day(e?.airdate)?.getTime() || null;
-    const upcoming = n > aired || (!!at && at > now); // not out yet: can't be marked watched
+    // not out yet: can't be marked watched. With the aired count unknown, only a past air date proves it's out.
+    const upcoming = (aired == null ? !at : n > aired) || (!!at && at > now);
     return {
       n,
       title: t.en_us || t.en || e?.canonicalTitle || st?.title.replace(/^Episode \d+\s*[-:]\s*/i, '') || '',
       native: t.ja_jp || '',
-      at, upcoming,
+      at, upcoming, unknown: aired == null && !at,
       length: e?.length || null,
       thumb: e?.thumbnail?.original || st?.thumbnail || null,
       summary: e?.description || '',
@@ -57,8 +58,9 @@ export function rows({ total, kitsu = [], streams = [], schedule = [], aired = I
 }
 
 // How many episodes have aired, from AniList: none before release, everything before the next airing episode while
-// it's airing, otherwise no limit (finished shows; air dates in rows() still catch scheduled ones).
-export const airedCount = m => (m.status === 'NOT_YET_RELEASED' ? 0 : m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : Infinity);
+// it's airing, no limit once it's finished. null = unknown: airing (or on hiatus) with no schedule on AniList.
+export const airedCount = m => (m.status === 'NOT_YET_RELEASED' ? 0 : m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1
+  : m.status === 'RELEASING' || m.status === 'HIATUS' ? null : Infinity);
 
 // Where an episode stands for you, from your progress.
 export const epState = (r, progress) => (r.n <= progress ? 'watched' : r.upcoming ? 'upcoming' : r.n === progress + 1 ? 'next' : '');
