@@ -4,6 +4,8 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-07
+
 ### Added
 - Rapid rating (Rate in the menu): score every show you've finished but never rated, one keypress each. Shows leave the queue as soon as they're rated; skip, undo, and buttons that follow your AniList score format.
 
@@ -100,7 +102,8 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ### Added
 - First version: franchise watch orders as train lines, search, details, Explore, Departures, Gacha and My pass.
 
-[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/lonlydwolf/animetro/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/lonlydwolf/animetro/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/lonlydwolf/animetro/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/lonlydwolf/animetro/compare/v0.4.0...v0.5.0
