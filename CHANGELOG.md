@@ -9,6 +9,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- Install and update with Homebrew: `brew install --cask lonlydwolf/tap/animetro`.
 - ESLint, a gitleaks secret scan, Dependabot, and a smoke test that launches the built Mac app in CI.
 - Releases are only built after the full CI passes.
 - CONTRIBUTING, SECURITY, issue and pull request templates, `.editorconfig`.

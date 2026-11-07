@@ -13,7 +13,15 @@ Type an anime name in English and get its whole franchise (seasons, movies, OVAs
 
 ### macOS app
 
-Download `Animetro-<version>-macOS.zip` from the [latest release](https://github.com/lonlydwolf/animetro/releases/latest), unzip it and drag **Animetro** to Applications. It runs on Apple Silicon and Intel Macs with macOS 13 or later.
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask lonlydwolf/tap/animetro
+```
+
+`brew upgrade --cask animetro` picks up new releases (the [tap](https://github.com/lonlydwolf/homebrew-tap) updates itself within a day of each one), and `brew uninstall --cask --zap animetro` removes the app and its data.
+
+Or download `Animetro-<version>-macOS.zip` from the [latest release](https://github.com/lonlydwolf/animetro/releases/latest), unzip it and drag **Animetro** to Applications. It runs on Apple Silicon and Intel Macs with macOS 13 or later.
 
 The app isn't notarized by Apple (that needs a paid developer account), so the first time macOS says it can't check it. Open it once with **right-click › Open › Open**, or go to System Settings › Privacy & Security and click **Open Anyway**. In Terminal, `xattr -dr com.apple.quarantine /Applications/Animetro.app` does the same.
 
