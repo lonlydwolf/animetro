@@ -4,6 +4,9 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- Rapid rating (Rate in the menu): score every show you've finished but never rated, one keypress each. Shows leave the queue as soon as they're rated; skip, undo, and buttons that follow your AniList score format.
+
 ### Fixed
 - Share cards in the Mac app have their pictures again (the banner, cover and avatar). AniList's image server refuses the app's `animetro://` origin, so the app now fetches card pictures itself.
 

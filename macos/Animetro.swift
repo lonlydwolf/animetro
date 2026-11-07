@@ -74,6 +74,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   var view: WKWebView!
   var titleWatch: NSKeyValueObservation?
   let selfTest = ProcessInfo.processInfo.environment["ANIMETRO_SELFTEST"] != nil
+  var savingScores = 0 // scores Rapid rating is still sending to AniList; the page reports it, leaving drops them
 
   func applicationDidFinishLaunching(_ note: Notification) {
     let config = WKWebViewConfiguration()
@@ -108,6 +109,29 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
 
   func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
 
+  // A web view can't run beforeunload for a closing window or a quitting app, so ask here. done(true) = leave.
+  func leaveWhileSaving(_ done: @escaping (Bool) -> Void) {
+    guard savingScores > 0 else { return done(true) }
+    guard window.attachedSheet == nil else { return done(false) } // already asking (or saving a card)
+    let n = savingScores, alert = NSAlert()
+    alert.messageText = "Your scores are still saving"
+    alert.informativeText = "Animetro is still sending \(n) score\(n == 1 ? "" : "s") to AniList. If you leave now, \(n == 1 ? "it" : "they") won't be saved."
+    alert.addButton(withTitle: "Stay")
+    alert.addButton(withTitle: "Leave Anyway")
+    alert.beginSheetModal(for: window) { done($0 == .alertSecondButtonReturn) }
+  }
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    guard savingScores > 0 else { return true }
+    leaveWhileSaving { if $0 { self.savingScores = 0; sender.close() } }
+    return false
+  }
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    guard savingScores > 0 else { return .terminateNow }
+    guard window.attachedSheet == nil else { return .terminateCancel }
+    leaveWhileSaving { NSApp.reply(toApplicationShouldTerminate: $0) }
+    return .terminateLater
+  }
+
   // Stay inside the app for Animetro pages and AniList login; open everything else in your browser.
   func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     guard let url = action.request.url else { return decisionHandler(.cancel) }
@@ -120,7 +144,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     }
     let mainFrame = action.targetFrame?.isMainFrame ?? true
     if url.scheme == "animetro" || !mainFrame || url.host == "anilist.co" || url.scheme == "about" {
-      return decisionHandler(.allow)
+      guard mainFrame, savingScores > 0 else { return decisionHandler(.allow) }
+      return leaveWhileSaving { decisionHandler($0 ? .allow : .cancel) } // links, Back, Reload: same question
     }
     NSWorkspace.shared.open(url)
     decisionHandler(.cancel)
@@ -135,7 +160,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   // The page leaves room for the close/minimize/zoom buttons, which full screen hides; tell each page which it is.
   func windowDidEnterFullScreen(_ note: Notification) { markFullScreen() }
   func windowDidExitFullScreen(_ note: Notification) { markFullScreen() }
-  func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { markFullScreen() }
+  func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { savingScores = 0; markFullScreen() } // a new page has nothing in flight
   func markFullScreen() {
     view.evaluateJavaScript("document.documentElement.toggleAttribute('data-fullscreen', \(window.styleMask.contains(.fullScreen)))")
   }
@@ -169,7 +194,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     }
   }
 
-  // Messages from the page. "look": the livery's mode and page color, so the title bar and window match (and
+  // Messages from the page. "busy": how many scores Rapid rating is still saving. "look": the livery's mode and page color, so the title bar and window match (and
   // the next launch opens in them). "save": a share card as base64 PNG, saved through a normal Save dialog
   // (a web view can't download files on its own).
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -180,6 +205,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
       UserDefaults.standard.set(bg, forKey: "bg")
       return
     }
+    if body["type"] as? String == "busy" { savingScores = body["n"] as? Int ?? 0; return }
     guard body["type"] as? String == "save",
           let name = body["name"] as? String, let b64 = body["data"] as? String, let data = Data(base64Encoded: b64) else { return }
     let panel = NSSavePanel()

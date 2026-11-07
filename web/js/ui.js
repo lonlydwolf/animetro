@@ -21,6 +21,7 @@ const NAV = [
   ['foryou.html', 'For you'],
   ['map.html', 'My map'],
   ['history.html', 'History'],
+  ['rate.html', 'Rate'],
   ['departures.html', 'Departures'],
   ['gacha.html', 'Gacha'],
 ];
