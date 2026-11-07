@@ -27,7 +27,8 @@ const seen = (m, list) => {
 // ---- render --------------------------------------------------------------
 function render() {
   const { anchor, list, user } = data;
-  let stops = view.order === 'story' ? storyOrder(data.stops) : [...data.stops].sort(byDate);
+  const ordered = view.order === 'story' ? storyOrder(data.stops) : [...data.stops].sort(byDate);
+  let stops = ordered;
   const every = stops.length;
   if (view.service !== 'local') stops = stops.filter(m => m.svc.level === 'express' || (view.service === 'rapid' && m.svc.level === 'rapid'));
   const letter = (title(anchor).match(/[A-Za-z]/)?.[0] || 'A').toUpperCase();
@@ -40,7 +41,7 @@ function render() {
   const visited = totalMin - leftMin;
   shown = { stops, hereIdx, totalEps, totalMin, pct: list.size && totalMin ? Math.round((visited / totalMin) * 100) : null };
 
-  const branches = junctions(stops, data.stops, data.transfers);
+  const branches = junctions(stops, ordered, data.transfers);
   const branch = ({ media: t, kind, earlier }) => {
     const e = list.get(t.id), year = t.startDate?.year;
     const label = kind === 'alt' ? `Transfer to the ${earlier ? 'earlier' : 'other'} version${year ? ` (${year})` : ''}` : 'Branch line: spin-off';

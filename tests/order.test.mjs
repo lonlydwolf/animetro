@@ -76,3 +76,12 @@ test('junctions hang spin-offs and other versions off the stop they branch from'
   const express = junctions([s1, s4], all, [spin]);
   assert.deepEqual([...express.keys()], [1], 'a hidden branch stop hands its junction to the stop before it');
 });
+
+test('in story order, a hidden stop hands its junction to the stop before it on screen, not by release date', async () => {
+  const { junctions } = await import('../web/js/order.js');
+  const st = (id, year, edges = []) => ({ id, startDate: { year }, relations: { edges: edges.map(([relationType, node]) => ({ relationType, node: { id: node } })) } });
+  const A = st(1, 2001), B = st(2, 2005), C = st(3, 2008, [['SPIN_OFF', 9]]);
+  const story = [B, C, A]; // a prequel released last comes first in story order
+  const j = junctions([B, A], story, [{ ...st(9, 2010), role: 'Spin-off' }]);
+  assert.deepEqual([...j.keys()], [2], 'C is hidden; the stop before it on screen is B');
+});
