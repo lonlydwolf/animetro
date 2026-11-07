@@ -11,6 +11,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- Junction Box: spin-offs and other versions branch off the watch-order line at the stop they connect to, instead of sitting in a sidebar list.
 - Welcome Back Carriage: a recap when you return to a show (where you stopped, the last two episodes' summaries, who's who, the next stop). Automatic for paused shows; opt in from the home page for shows you're watching. Home lists paused shows.
 - Hovering or tapping a rider tier shows a short description and how many points it is away.
 - 21 more station stamps (37 in all), from ten thousand episodes to donghua, music videos and a favourite voice actor. Uncollected stamps show your progress; hovering or tapping a collected one shows how you earned it.
