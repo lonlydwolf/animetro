@@ -128,7 +128,7 @@ function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
         <div class="rank-now"><small lang="ja">${tier.jp}</small><b>${tier.name}</b></div>
         <div class="rank-progress">
           <div class="bar big" role="progressbar" aria-valuenow="${Math.round(pct * 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to next tier"><i style="width:${pct * 100}%"></i></div>
-          <p>${next ? `<b>${(next.at - points).toLocaleString()}</b> points to <b style="color:${next.c}">${next.name}</b> <span lang="ja">${next.jp}</span>` : 'Top of the line. There is no next stop, only stars.'}</p>
+          <p>${next ? `<b>${(next.at - points).toLocaleString()}</b> points to <b class="tier-name" style="--tc:${next.c}">${next.name}</b> <span lang="ja">${next.jp}</span>` : 'Top of the line. There is no next stop, only stars.'}</p>
         </div>
       </div>
       <ol class="tier-line">${TIERS.map((t, j) => `
