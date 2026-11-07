@@ -129,7 +129,7 @@ function shareCard() {
   const { stops, hereIdx, totalEps, totalMin, pct } = shown;
   showCard(() => lineCard({
     name: title(anchor),
-    color: getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#ffd23f',
+    color: tint(anchor, '#ffd23f'), // the share card is an image, so it keeps the cover's own color
     banner: safeUrl(anchor.bannerImage) ? anchor.bannerImage : anchor.coverImage?.large,
     stops: stops.map((m, i) => ({
       name: title(m),
@@ -157,8 +157,7 @@ async function boot() {
   const [user, list] = await Promise.all([me(), listStatus([...stops, ...transfers].map(m => m.id))]);
   data = { stops, transfers, anchor, list, user, capped: graph.capped };
 
-  const color = tint(anchor, '#ffd23f');
-  document.documentElement.style.setProperty('--line', color);
+  if (tint(anchor, '')) document.documentElement.style.setProperty('--cover', tint(anchor, ''));
   document.title = `${title(anchor)} watch order · Animetro`;
   $('#name').textContent = title(anchor);
   $('#hero').style.setProperty('--banner', safeUrl(anchor.bannerImage) ? `url("${anchor.bannerImage}")` : 'none');

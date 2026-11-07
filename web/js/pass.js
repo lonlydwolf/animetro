@@ -4,6 +4,7 @@ import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
 import { passCard, showCard } from './share.js';
+import { picker } from './themes.js';
 
 header();
 const page = $('#page');
@@ -237,4 +238,11 @@ function connect() {
 }
 
 if (loginRejected) toast("Ignored a login link this app didn't start. Log in from this page instead.");
-boot().catch(e => fail(page, e));
+// The livery picker sits at the bottom of My pass, logged in or not.
+function livery() {
+  const el = document.createElement('section');
+  el.id = 'livery';
+  page.append(el);
+  picker(el);
+}
+boot().catch(e => fail(page, e)).finally(livery);

@@ -54,7 +54,7 @@ function render(history) {
       </div>
     </section>
     <section>
-      <div class="section-head"><h2>Ride calendar</h2><span class="hint" style="margin:0">Each square is a day; brighter means more logged.</span></div>
+      <div class="section-head"><h2>Ride calendar</h2><span class="hint" style="margin:0">Each square is a day; the stronger the color, the more you logged.</span></div>
       ${calendar(counts, today)}
     </section>
     <section>

@@ -155,9 +155,9 @@ export function marker(state, x, y, color, pulse = false) {
     case 'done': return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${color}" stroke-width="5"/>`;
     case 'here': return `${pulse ? `<circle cx="${x}" cy="${y}" r="${r + 6}" class="pulse" fill="${color}"/>` : ''}<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${color}" stroke-width="5"/><circle cx="${x}" cy="${y}" r="3.5" fill="${color}"/>`;
     case 'paused': return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" stroke="${color}" stroke-width="5"/><rect x="${x - 3}" y="${y - 3.5}" width="2" height="7" fill="${color}"/><rect x="${x + 1}" y="${y - 3.5}" width="2" height="7" fill="${color}"/>`;
-    case 'dropped': return `<circle cx="${x}" cy="${y}" r="${r}" fill="#2d3768" stroke="#9aa3c7" stroke-width="3"/><path d="M${x - 4} ${y - 4} L${x + 4} ${y + 4} M${x + 4} ${y - 4} L${x - 4} ${y + 4}" stroke="#9aa3c7" stroke-width="2.4"/>`;
-    case 'planned': return `<circle cx="${x}" cy="${y}" r="${r}" fill="#131833" stroke="${color}" stroke-width="3" stroke-dasharray="4 3"/>`;
-    case 'soon': return `<circle cx="${x}" cy="${y}" r="${r}" fill="#131833" stroke="#9aa3c7" stroke-width="2.5" stroke-dasharray="2 3"/>`;
-    default: return `<circle cx="${x}" cy="${y}" r="${r}" fill="#131833" stroke="#5b6594" stroke-width="3.5"/>`;
+    case 'dropped': return `<circle cx="${x}" cy="${y}" r="${r}" style="fill:var(--rail);stroke:var(--dim)" stroke-width="3"/><path d="M${x - 4} ${y - 4} L${x + 4} ${y + 4} M${x + 4} ${y - 4} L${x - 4} ${y + 4}" style="stroke:var(--dim)" stroke-width="2.4"/>`;
+    case 'planned': return `<circle cx="${x}" cy="${y}" r="${r}" style="fill:var(--night)" stroke="${color}" stroke-width="3" stroke-dasharray="4 3"/>`;
+    case 'soon': return `<circle cx="${x}" cy="${y}" r="${r}" style="fill:var(--night);stroke:var(--dim)" stroke-width="2.5" stroke-dasharray="2 3"/>`;
+    default: return `<circle cx="${x}" cy="${y}" r="${r}" style="fill:var(--night);stroke:color-mix(in srgb, var(--rail) 50%, var(--dim))" stroke-width="3.5"/>`;
   }
 }

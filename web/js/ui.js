@@ -1,4 +1,5 @@
 import { gql, me, title, listStatus, rankSearch, CARD, prefs, adultArg } from './api.js';
+import { mode, setMode, tellApp } from './themes.js';
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -33,6 +34,9 @@ export const FORMAT = {
 };
 
 // Header on every page: logo roundel, nav, quick search, and your pass.
+const SUN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const MOON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z" fill="currentColor"/></svg>';
+
 export function header() {
   const page = location.pathname.split('/').pop() || 'index.html';
   const el = document.createElement('header');
@@ -44,6 +48,7 @@ export function header() {
     <nav>${NAV.map(([href, label]) => `<a href="${href}"${href === page ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
     ${page === 'search.html' ? '' : '<div class="top-search"><input type="search" placeholder="Find a series…" aria-label="Find a series"></div>'}
     <div class="top-end">
+      <button class="mode-btn" type="button"></button>
       <button class="adult-pill" aria-pressed="${prefs.adult()}" title="18+ titles are ${prefs.adult() ? 'shown' : 'hidden'}. Click to change.">18+</button>
       <a class="pass-link" href="pass.html"${page === 'pass.html' ? ' aria-current="page"' : ''}><span class="pass-avatar"></span><span class="pass-name">My pass</span></a>
     </div>`;
@@ -51,6 +56,18 @@ export function header() {
   const input = $('.top-search input', el);
   if (input) searchBox(input, m => (location.href = `line.html?id=${m.id}`));
   $('.adult-pill', el).onclick = adultGate;
+  // light/dark for the current livery, on every page
+  const modeBtn = $('.mode-btn', el);
+  const showMode = () => {
+    const lit = mode() === 'light';
+    modeBtn.innerHTML = lit ? MOON : SUN;
+    modeBtn.setAttribute('aria-label', `Switch to ${lit ? 'dark' : 'light'} mode`);
+    modeBtn.title = modeBtn.getAttribute('aria-label');
+  };
+  modeBtn.onclick = () => setMode(mode() === 'light' ? 'dark' : 'light');
+  addEventListener('livery', showMode);
+  showMode();
+  tellApp();
   me().then(u => {
     if (!u) return;
     if (safeUrl(u.avatar?.large)) $('.pass-avatar', el).style.backgroundImage = `url("${u.avatar.large}")`;

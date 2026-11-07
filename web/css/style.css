@@ -8,7 +8,8 @@
   --dim: #9aa3c7;
   --platform: #ffd23f;
   --led: #ffa53c;
-  --line: #ffd23f;
+  --cover: var(--platform); /* pages set it to a show's cover color */
+  --line: var(--cover);
 
   --ginza: #f39700; --marunouchi: #e60012; --hibiya: #9caeb7; --tozai: #00a7db; --chiyoda: #00a650;
   --yurakucho: #d7c447; --hanzomon: #9b7cb6; --namboku: #00ada9; --fukutoshin: #bb641d;
@@ -19,6 +20,51 @@
   --wrap: 1180px;
   color-scheme: dark;
 }
+/* light mode darkens cover colors, so a pale cover still shows on a light page */
+[data-mode="light"] { --line: color-mix(in srgb, var(--cover) 55%, #000); }
+[data-mode="light"]:not([style*="--cover"]) { --line: var(--platform); }
+/* Liveries (themes): each sets the base colors in a dark and a light mode. Chosen on My pass, mode from the header.
+   The same attributes on a swatch preview that livery. Metro line colors stay the same in every livery. */
+[data-theme="last-train"] { --night: #131833; --tunnel: #1c2346; --rail: #2d3768; --ink: #eef1fa; --dim: #9aa3c7; --platform: #ffd23f; --led: #ffa53c; color-scheme: dark; }
+[data-theme="last-train"][data-mode="light"] { --night: #f4f6fb; --tunnel: #e3e8f4; --rail: #c8d0e6; --ink: #131833; --dim: #4b5580; --platform: #9a5700; --led: #c2410c; color-scheme: light; }
+[data-theme="unit-01"] { --night: #150f22; --tunnel: #231936; --rail: #3a2c57; --ink: #eef7e6; --dim: #a99dc6; --platform: #8be04e; --led: #ff8c1a; color-scheme: dark; }
+[data-theme="unit-01"][data-mode="light"] { --night: #f6f3fb; --tunnel: #e9e2f5; --rail: #d2c6ea; --ink: #22163a; --dim: #5b4d7a; --platform: #5a2ca0; --led: #2f7d14; color-scheme: light; }
+[data-theme="spirited-away"] { --night: #1d0c10; --tunnel: #31161b; --rail: #52252c; --ink: #f7ebdd; --dim: #c9a99c; --platform: #f2b440; --led: #ff6b4a; color-scheme: dark; }
+[data-theme="spirited-away"][data-mode="light"] { --night: #fbf3ea; --tunnel: #f2e3d3; --rail: #e2c9b0; --ink: #3a1a14; --dim: #7a5548; --platform: #a3251c; --led: #9a6a00; color-scheme: light; }
+[data-theme="your-name"] { --night: #141a3a; --tunnel: #222a56; --rail: #3a437e; --ink: #fdf1f4; --dim: #b6b5d8; --platform: #ff9bb3; --led: #ffb86b; color-scheme: dark; }
+[data-theme="your-name"][data-mode="light"] { --night: #fdf3f6; --tunnel: #f6e2ea; --rail: #e8c6d4; --ink: #1f2550; --dim: #5c5a86; --platform: #b8305f; --led: #a85a00; color-scheme: light; }
+[data-theme="akira"] { --night: #110808; --tunnel: #221010; --rail: #3e1a1a; --ink: #f6eeee; --dim: #b89e9e; --platform: #ff3b30; --led: #ff9500; color-scheme: dark; }
+[data-theme="akira"][data-mode="light"] { --night: #fbf3f2; --tunnel: #f3e1df; --rail: #e3c2bf; --ink: #2a0d0d; --dim: #6e4a4a; --platform: #c4161c; --led: #a24d00; color-scheme: light; }
+[data-theme="cowboy-bebop"] { --night: #0f1a24; --tunnel: #182a38; --rail: #28455c; --ink: #f2ead8; --dim: #a2b4c2; --platform: #f2c14e; --led: #e4572e; color-scheme: dark; }
+[data-theme="cowboy-bebop"][data-mode="light"] { --night: #f7f2e6; --tunnel: #ece3cf; --rail: #d9cba9; --ink: #14232f; --dim: #4e5f6b; --platform: #1f4e79; --led: #b23a1a; color-scheme: light; }
+[data-theme="demon-slayer"] { --night: #0c1410; --tunnel: #15231c; --rail: #25392d; --ink: #eef5ef; --dim: #9db4a5; --platform: #45c486; --led: #ef5a50; color-scheme: dark; }
+[data-theme="demon-slayer"][data-mode="light"] { --night: #f2f7f3; --tunnel: #e1ece4; --rail: #c3d8c9; --ink: #10241a; --dim: #4a6655; --platform: #1d7a4c; --led: #b8322a; color-scheme: light; }
+[data-theme="jujutsu-kaisen"] { --night: #0b0d17; --tunnel: #151a2e; --rail: #262f52; --ink: #e9edff; --dim: #9ba5cf; --platform: #5b8cff; --led: #c84bff; color-scheme: dark; }
+[data-theme="jujutsu-kaisen"][data-mode="light"] { --night: #f3f5ff; --tunnel: #e3e8fb; --rail: #c7d0f2; --ink: #141a33; --dim: #4d5784; --platform: #2f55d4; --led: #8a2bc2; color-scheme: light; }
+[data-theme="one-piece"] { --night: #0a2236; --tunnel: #123250; --rail: #1f4b72; --ink: #fff6e5; --dim: #a9c1d6; --platform: #ffcf3f; --led: #ff5a4e; color-scheme: dark; }
+[data-theme="one-piece"][data-mode="light"] { --night: #fff8ec; --tunnel: #f9ebcf; --rail: #eed6a6; --ink: #0a2236; --dim: #4f6477; --platform: #c0262d; --led: #8a5a00; color-scheme: light; }
+[data-theme="sailor-moon"] { --night: #1d1028; --tunnel: #2c1a3d; --rail: #46295e; --ink: #fdeef6; --dim: #c3a6cf; --platform: #ff8fc0; --led: #ffd166; color-scheme: dark; }
+[data-theme="sailor-moon"][data-mode="light"] { --night: #fff4f8; --tunnel: #ffe3ee; --rail: #f5c4d8; --ink: #3b2547; --dim: #73557b; --platform: #c2255c; --led: #b45309; color-scheme: light; }
+[data-theme="frieren"] { --night: #0f1a1c; --tunnel: #182a2c; --rail: #284346; --ink: #eaf4f1; --dim: #9fbab4; --platform: #7fd6c6; --led: #e8c06a; color-scheme: dark; }
+[data-theme="frieren"][data-mode="light"] { --night: #f4f7f5; --tunnel: #e2ebe7; --rail: #c6d6cf; --ink: #1f3b36; --dim: #46605a; --platform: #23766c; --led: #9a6a26; color-scheme: light; }
+[data-theme="mocha"] { --night: #1e1e2e; --tunnel: #313244; --rail: #45475a; --ink: #cdd6f4; --dim: #a6adc8; --platform: #cba6f7; --led: #fab387; color-scheme: dark; }
+[data-theme="mocha"][data-mode="light"] { --night: #eff1f5; --tunnel: #dce0e8; --rail: #bcc0cc; --ink: #4c4f69; --dim: #5c5f77; --platform: #8839ef; --led: #fe640b; color-scheme: light; }
+[data-theme="macchiato"] { --night: #24273a; --tunnel: #363a4f; --rail: #494d64; --ink: #cad3f5; --dim: #a5adcb; --platform: #c6a0f6; --led: #f5a97f; color-scheme: dark; }
+[data-theme="macchiato"][data-mode="light"] { --night: #eff1f5; --tunnel: #dce0e8; --rail: #bcc0cc; --ink: #4c4f69; --dim: #5c5f77; --platform: #8839ef; --led: #fe640b; color-scheme: light; }
+[data-theme="frappe"] { --night: #303446; --tunnel: #414559; --rail: #51576d; --ink: #c6d0f5; --dim: #b5bfe2; --platform: #ca9ee6; --led: #ef9f76; color-scheme: dark; }
+[data-theme="frappe"][data-mode="light"] { --night: #eff1f5; --tunnel: #dce0e8; --rail: #bcc0cc; --ink: #4c4f69; --dim: #5c5f77; --platform: #8839ef; --led: #fe640b; color-scheme: light; }
+[data-theme="dracula"] { --night: #282a36; --tunnel: #343746; --rail: #44475a; --ink: #f8f8f2; --dim: #a4abd0; --platform: #bd93f9; --led: #ffb86c; color-scheme: dark; }
+[data-theme="dracula"][data-mode="light"] { --night: #fffbeb; --tunnel: #f2ecd3; --rail: #ddd5b5; --ink: #1f1f1f; --dim: #5a5490; --platform: #644ac9; --led: #a34d14; color-scheme: light; }
+[data-theme="nord"] { --night: #2e3440; --tunnel: #3b4252; --rail: #4c566a; --ink: #eceff4; --dim: #a9b4c6; --platform: #88c0d0; --led: #d08770; color-scheme: dark; }
+[data-theme="nord"][data-mode="light"] { --night: #eceff4; --tunnel: #e5e9f0; --rail: #d8dee9; --ink: #2e3440; --dim: #4c566a; --platform: #45658c; --led: #a5434c; color-scheme: light; }
+[data-theme="tokyo-night"] { --night: #1a1b26; --tunnel: #24283b; --rail: #414868; --ink: #c0caf5; --dim: #9aa5ce; --platform: #7aa2f7; --led: #ff9e64; color-scheme: dark; }
+[data-theme="tokyo-night"][data-mode="light"] { --night: #e1e2e7; --tunnel: #d0d5e3; --rail: #b6bfe2; --ink: #2e3555; --dim: #4b5479; --platform: #2557b8; --led: #a35300; color-scheme: light; }
+[data-theme="gruvbox"] { --night: #282828; --tunnel: #3c3836; --rail: #504945; --ink: #ebdbb2; --dim: #bdae93; --platform: #fabd2f; --led: #fe8019; color-scheme: dark; }
+[data-theme="gruvbox"][data-mode="light"] { --night: #fbf1c7; --tunnel: #f2e5bc; --rail: #d5c4a1; --ink: #3c3836; --dim: #665c54; --platform: #af3a03; --led: #076678; color-scheme: light; }
+[data-theme="rose-pine"] { --night: #191724; --tunnel: #26233a; --rail: #403d52; --ink: #e0def4; --dim: #a6a2c4; --platform: #ebbcba; --led: #f6c177; color-scheme: dark; }
+[data-theme="rose-pine"][data-mode="light"] { --night: #faf4ed; --tunnel: #f2e9e1; --rail: #dfdad9; --ink: #575279; --dim: #635f7d; --platform: #a5566d; --led: #b06d00; color-scheme: light; }
+[data-theme="solarized"] { --night: #002b36; --tunnel: #073642; --rail: #0e4b5a; --ink: #eee8d5; --dim: #93a1a1; --platform: #b58900; --led: #cb4b16; color-scheme: dark; }
+[data-theme="solarized"][data-mode="light"] { --night: #fdf6e3; --tunnel: #eee8d5; --rail: #d9d2bd; --ink: #073642; --dim: #4a5f66; --platform: #1f6fa8; --led: #cb4b16; color-scheme: light; }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -79,6 +125,8 @@ section { margin-top: 56px; }
   font: 400 .72rem var(--display); cursor: pointer; text-decoration: line-through;
 }
 .adult-pill:hover { color: var(--ink); border-color: var(--dim); }
+.mode-btn { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--rail); background: none; color: var(--dim); cursor: pointer; transition: color .2s, transform .4s; }
+.mode-btn:hover { color: var(--platform); border-color: var(--dim); transform: rotate(-20deg); }
 .adult-pill[aria-pressed=true] { background: var(--marunouchi); border: 1px solid var(--marunouchi); color: #fff; text-decoration: none; }
 .pass-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--rail) center/cover; display: none; }
 .pass-avatar.on { display: block; }
@@ -116,15 +164,15 @@ section { margin-top: 56px; }
   display: inline-block; font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 99px;
   background: var(--rail); color: var(--ink); border: 0; white-space: nowrap;
 }
-.tag.live { background: #e6001233; color: #ff8a8a; }
+.tag.live { background: #e6001233; color: color-mix(in srgb, #e60012 45%, var(--ink)); }
 .tag.soon { background: #ffd23f22; color: var(--platform); }
 .tag.add { background: transparent; box-shadow: inset 0 0 0 1px var(--platform); color: var(--platform); cursor: pointer; }
 .tag.add:hover { background: var(--platform); color: var(--night); }
-.s-COMPLETED { background: #00a65033 !important; color: #6fe3a3 !important; }
-.s-CURRENT, .s-REPEATING { background: #00a7db33 !important; color: #7fd8f5 !important; }
-.s-PLANNING { background: #9b7cb633 !important; color: #cdb8e6 !important; }
-.s-DROPPED { background: #e6001233 !important; color: #ff9a9a !important; }
-.s-PAUSED { background: #d7c44733 !important; color: #efe08a !important; }
+.s-COMPLETED { background: #00a65033 !important; color: color-mix(in srgb, #00a650 55%, var(--ink)) !important; }
+.s-CURRENT, .s-REPEATING { background: #00a7db33 !important; color: color-mix(in srgb, #00a7db 55%, var(--ink)) !important; }
+.s-PLANNING { background: #9b7cb633 !important; color: color-mix(in srgb, #9b7cb6 55%, var(--ink)) !important; }
+.s-DROPPED { background: #e6001233 !important; color: color-mix(in srgb, #e60012 45%, var(--ink)) !important; }
+.s-PAUSED { background: #d7c44733 !important; color: color-mix(in srgb, #b5a42a 55%, var(--ink)) !important; }
 .seg { display: flex; padding: 4px; border-radius: 99px; background: var(--tunnel); border: 1px solid var(--rail); }
 .seg button { flex: 1; border: 0; background: none; padding: 7px 10px; border-radius: 99px; cursor: pointer; font-weight: 700; color: var(--dim); }
 .seg button[aria-pressed="true"] { background: var(--platform); color: var(--night); }
@@ -201,7 +249,7 @@ section { margin-top: 56px; }
 
 .line-hero {
   margin-top: 0; position: relative; padding-top: 90px; padding-bottom: 34px; overflow: hidden;
-  background: linear-gradient(180deg, #13183399, var(--night) 92%), var(--banner) center/cover no-repeat;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--night) 60%, transparent), var(--night) 92%), var(--banner) center/cover no-repeat;
   border-bottom: 10px solid var(--line);
 }
 .line-hero h1 { font-size: clamp(2rem, 6vw, 4.2rem); max-width: 16em; }
@@ -268,7 +316,7 @@ section { margin-top: 56px; }
 .done .node::after { content: ''; position: absolute; left: 50%; top: 45%; width: 30%; height: 50%; border: solid var(--night); border-width: 0 4px 4px 0; transform: translate(-50%, -50%) rotate(45deg); }
 .done .stop-link img { filter: saturate(.5); }
 .here .node { animation: here 1.6s ease-out infinite; }
-@keyframes here { 0% { box-shadow: 0 0 0 6px var(--line), 0 0 0 6px #ffd23faa; } 100% { box-shadow: 0 0 0 6px var(--line), 0 0 0 22px #ffd23f00; } }
+@keyframes here { 0% { box-shadow: 0 0 0 6px var(--line), 0 0 0 6px color-mix(in srgb, var(--line) 66%, transparent); } 100% { box-shadow: 0 0 0 6px var(--line), 0 0 0 22px transparent; } }
 .you {
   position: absolute; z-index: 2; top: -4px; left: calc(var(--code) + var(--gap) * 2 + var(--nodecol) + 10px);
   background: var(--platform); color: var(--night); font-size: .72rem; font-weight: 700; padding: 1px 10px; border-radius: 99px;
@@ -277,7 +325,7 @@ section { margin-top: 56px; }
 /* ---------- anime page ---------- */
 .anime-hero {
   margin-top: 0; padding-top: 120px; position: relative;
-  background: linear-gradient(180deg, #13183355, var(--night) 85%), var(--banner) center 30%/cover no-repeat;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--night) 33%, transparent), var(--night) 85%), var(--banner) center 30%/cover no-repeat;
 }
 .trailer-link { display: grid; place-items: center; background: #000 center/cover; text-decoration: none; }
 .trailer-link span { background: #000c; color: #fff; padding: 10px 18px; border-radius: 99px; font-weight: 700; }
@@ -310,7 +358,7 @@ section { margin-top: 56px; }
 .ep-main small { color: var(--dim); }
 .ep-main details { margin-top: 4px; color: var(--dim); font-size: .88rem; }
 .ep-main summary { cursor: pointer; width: max-content; }
-.ep-main details p { margin: 6px 0 0; max-width: 72ch; white-space: pre-line; line-height: 1.6; color: #d8dcef; }
+.ep-main details p { margin: 6px 0 0; max-width: 72ch; white-space: pre-line; line-height: 1.6; color: color-mix(in srgb, var(--ink) 85%, var(--dim)); }
 .ep-side { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; align-items: center; }
 .ep.watched { opacity: .62; }
 .ep.watched .ep-n { color: var(--dim); }
@@ -330,7 +378,20 @@ section { margin-top: 56px; }
 .ep-card.next .ep-thumb { box-shadow: 0 0 0 3px var(--line); }
 .tag.next-up { background: var(--line); color: var(--night); font-weight: 700; }
 @media (hover: hover) { .ep:not(:hover, :focus-within, .next) [data-upto], .ep-card:not(:hover, :focus-within, .next) [data-upto] { opacity: 0; } }
-.synopsis { white-space: pre-line; color: #d8dcef; max-width: 68ch; line-height: 1.75; }
+.lv-group { margin: 22px 0 10px; font-size: 1rem; color: var(--dim); font-family: var(--body); font-weight: 700; }
+.liveries { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.livery { display: grid; gap: 2px; justify-items: start; text-align: left; padding: 8px 8px 10px; border-radius: 14px; border: 2px solid transparent; background: var(--tunnel); cursor: pointer; }
+.livery:hover { border-color: var(--rail); }
+.livery[aria-pressed="true"] { border-color: var(--platform); }
+.livery b { margin-top: 6px; font-size: .92rem; }
+.livery small { color: var(--dim); font-size: .74rem; }
+.lv-swatch { display: grid; grid-template-columns: 1fr 1fr; width: 100%; aspect-ratio: 16/9; border-radius: 9px; overflow: hidden; box-shadow: 0 0 0 1px var(--rail); }
+.lv-half { background: var(--night); padding: 9px 7px; display: grid; align-content: space-between; gap: 6px; }
+.lv-card { display: grid; gap: 4px; background: var(--tunnel); border-radius: 5px; padding: 6px; }
+.lv-card i { display: block; height: 4px; border-radius: 2px; background: var(--ink); }
+.lv-card i + i { width: 60%; background: var(--dim); }
+.lv-btn { display: block; height: 9px; width: 70%; border-radius: 99px; background: var(--platform); }
+.synopsis { white-space: pre-line; color: color-mix(in srgb, var(--ink) 85%, var(--dim)); max-width: 68ch; line-height: 1.75; }
 .side-box { background: var(--tunnel); border-radius: 16px; padding: 20px; display: grid; gap: 14px; align-content: start; }
 .side-box dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; font-size: .92rem; }
 .side-box dt { color: var(--dim); }
@@ -401,7 +462,7 @@ section { margin-top: 56px; }
 .days { display: flex; gap: 6px; flex-wrap: wrap; }
 .days button { border: 1px solid var(--rail); background: none; padding: 6px 14px; border-radius: 99px; cursor: pointer; font-weight: 700; color: var(--dim); }
 .days button[aria-pressed="true"] { background: var(--led); border-color: var(--led); color: var(--night); }
-.board { background: #090c1a; border-radius: 18px; padding: 10px; border: 4px solid #232a4f; overflow-x: auto; }
+.board { --led: #ffa53c; /* a lit LED board in every livery */ background: #090c1a; border-radius: 18px; padding: 10px; border: 4px solid #232a4f; overflow-x: auto; }
 .board table { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-family: var(--dot); color: var(--led); min-width: 640px; }
 .board th { white-space: nowrap; text-align: left; font-weight: 400; color: #8b93bd; font-size: .85rem; padding: 6px 12px; }
 .board td { padding: 9px 12px; background: #11152a; font-size: 1.05rem; white-space: nowrap; }
@@ -523,6 +584,7 @@ section { margin-top: 56px; }
 .adult-badge { position: absolute; top: 8px; left: 8px; background: var(--marunouchi); color: #fff; font: 400 .7rem var(--display); padding: 3px 7px; border-radius: 6px; }
 /* "Last train": the 18+ ticket swaps platform yellow for red-lantern red */
 body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10%, #3a0f2a 0%, var(--night) 55%) fixed; }
+[data-mode="light"] body.night { --platform: #b8124f; background: radial-gradient(ellipse at 70% -10%, #f9d2e2 0%, var(--night) 55%) fixed; }
 
 /* ---------- for you ---------- */
 .fy-hero { margin-top: 48px; }
@@ -680,7 +742,7 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .mline-head b { font-size: 1rem; }
 .mline-head:hover b { color: var(--platform); }
 .mline-map { display: block; max-width: 100%; height: auto; overflow: visible; }
-.mline-map .track { fill: none; stroke: #0d1129; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+.mline-map .track { fill: none; stroke: color-mix(in srgb, var(--night) 65%, var(--ink) 8%); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
 .mline-map .track-color { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .mline-map a:hover circle:not(.pulse) { stroke-width: 7; }
 .mline-map a:focus-visible { outline: none; }
@@ -704,7 +766,7 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .heat .l1, .heat-key .l1 { background: color-mix(in srgb, var(--platform) 28%, var(--tunnel)); }
 .heat .l2, .heat-key .l2 { background: color-mix(in srgb, var(--platform) 52%, var(--tunnel)); }
 .heat .l3, .heat-key .l3 { background: color-mix(in srgb, var(--platform) 76%, var(--tunnel)); }
-.heat .l4, .heat-key .l4 { background: var(--platform); box-shadow: 0 0 8px #ffd23f66; }
+.heat .l4, .heat-key .l4 { background: var(--platform); box-shadow: 0 0 8px color-mix(in srgb, var(--platform) 40%, transparent); }
 .heat-key { display: flex; align-items: center; gap: 4px; color: var(--dim); font-size: .75rem; justify-self: end; }
 .heat-key span { margin: 0 4px; }
 .section-head .chips input { position: absolute; opacity: 0; }

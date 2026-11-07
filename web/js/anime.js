@@ -43,7 +43,7 @@ async function boot() {
   }
   entry = (await listStatus([id])).get(id);
   document.title = `${title(m)} · Animetro`;
-  document.documentElement.style.setProperty('--line', tint(m, '#ffd23f'));
+  if (tint(m, '')) document.documentElement.style.setProperty('--cover', tint(m, ''));
 
   const runtime = (m.episodes || 0) * (m.duration || 0);
   const tags = m.tags.filter(t => t.rank >= 60);
