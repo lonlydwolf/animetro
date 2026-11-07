@@ -20,8 +20,9 @@ test('ride points, tier and stamps for a seasoned rider', () => {
   });
   const got = new Set(r.stamps.filter(x => x.got).map(x => x.name));
   for (const name of ['First ride', 'Century', 'Thousand episodes', 'Week pass', 'Month pass', 'Cinema car', 'Time traveler', 'Long haul', 'Genre hopper', 'International transfer', 'Studio regular', 'Dreamer']) assert.ok(got.has(name), name);
-  for (const name of ['Year pass', 'Tough crowd', 'Emergency exit']) assert.ok(!got.has(name), name);
-  assert.equal(r.points, 4375 + 5200 + 350 + 1800, 'time + completions + genres + 12 stamps');
+  for (const name of ['Year pass', 'Tough crowd', 'Emergency exit', 'Completionist', 'Mecha pilot']) assert.ok(!got.has(name), name);
+  assert.equal(r.stamps.length, 37);
+  assert.equal(r.points, 4375 + 5200 + 350 + got.size * 75, 'time + completions + genres + stamps');
   assert.equal(r.tier.name, 'Limited Express');
   assert.equal(r.next.name, 'Shinkansen');
   assert.ok(r.pct > 0 && r.pct < 1);
@@ -41,4 +42,23 @@ test('taste ignores cast tags and weighs higher-rated genres more', () => {
   assert.ok(sad.pct > loud.pct);
   assert.deepEqual(sad.why, ['Tragedy']);
   assert.ok(sad.pct <= 100 && loud.pct >= 0);
+});
+
+test('new stamps read the rest of the statistics, and show progress toward their goal', () => {
+  const r = ride({
+    count: 60, episodesWatched: 12000, minutesWatched: 0, meanScore: 88, statuses: [{ status: 'COMPLETED', count: 60 }, { status: 'PAUSED', count: 4 }],
+    genres: [{ genre: 'Romance', count: 51 }, { genre: 'Mecha', count: 7 }],
+    formats: [{ format: 'OVA', count: 20 }, { format: 'SPECIAL', count: 5 }, { format: 'MUSIC', count: 5 }],
+    releaseYears: [1965, 1979, 1988, 1999, 2004, 2015].map(releaseYear => ({ releaseYear, count: 1 })),
+    countries: [{ country: 'JP', count: 50 }, { country: 'CN', count: 10 }], voiceActors: [{ count: 31 }], staff: [{ count: 12 }],
+    scores: [{ count: 60 }, { count: 45 }], startYears: [2020, 2021, 2022].map(startYear => ({ startYear, count: 5 })),
+  });
+  const by = Object.fromEntries(r.stamps.map(x => [x.name, x]));
+  for (const name of ['Ten thousand', 'Special service', 'Music car', 'Dawn of anime', 'Every decade', 'Hopeless romantic', 'Donghua line', 'Voice fan', 'Critic', 'Easy to please'])
+    assert.ok(by[name].got, name);
+  for (const name of ['Familiar names', 'Rest stop', 'Five-year rider', 'Mecha pilot', 'Tough crowd']) assert.ok(!by[name].got, name);
+  assert.deepEqual([by['Mecha pilot'].have, by['Mecha pilot'].need], [7, 20]);
+  assert.deepEqual([by['Rest stop'].have, by['Rest stop'].need], [4, 10]);
+  assert.equal(by['Ten thousand'].have, 10000, 'progress stops at the goal');
+  assert.equal(new Set(r.stamps.map(x => x.k)).size, r.stamps.length, 'every stamp has its own kanji');
 });

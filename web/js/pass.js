@@ -39,8 +39,9 @@ async function boot() {
   if (!user) return connect();
   const d = await gql(`query($u:Int){
     User(id:$u){ createdAt statistics{anime{ count episodesWatched minutesWatched meanScore statuses{ status count }
-      genres(limit:30,sort:COUNT_DESC){ genre count } formats{ format count } releaseYears{ releaseYear count } lengths{ length count }
-      countries{ country count } studios(limit:1,sort:COUNT_DESC){ count } }} }
+      genres(limit:30,sort:COUNT_DESC){ genre count } formats{ format count } releaseYears(limit:200){ releaseYear count } lengths{ length count }
+      countries{ country count } studios(limit:1,sort:COUNT_DESC){ count } voiceActors(limit:1,sort:COUNT_DESC){ count }
+      staff(limit:1,sort:COUNT_DESC){ count } scores{ count } startYears{ startYear count } }} }
     current: Page(perPage:12){ mediaList(userId:$u,type:ANIME,status:CURRENT,sort:UPDATED_TIME_DESC){ progress media{ id episodes isAdult title{english romaji} coverImage{medium color} nextAiringEpisode{episode timeUntilAiring} } } }
   }`, { u: user.id });
 
@@ -137,8 +138,10 @@ function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
     <section>
       <div class="section-head"><h2>Station stamps</h2><span class="hint" style="margin:0">${got} of ${stamps.length} collected</span></div>
       <div class="stamps">${stamps.map((x, j) => `
-        <div class="stamp${x.got ? ' got' : ''}" style="--c:var(--${INK[j % INK.length]});--r:${((j * 37) % 24) - 12}deg">
-          <span class="ink" lang="ja" aria-hidden="true">${x.k}</span><b>${x.name}</b><small>${x.got ? 'Collected' : x.how}</small>
+        <div class="stamp${x.got ? ' got' : ''}" style="--c:var(--${INK[j % INK.length]});--r:${((j * 37) % 24) - 12}deg"${x.got ? ' tabindex="0"' : ''}>
+          <span class="ink" lang="ja" aria-hidden="true">${x.k}</span><b>${x.name}</b>
+          ${x.got ? `<small>Collected</small><span class="stamp-how" role="tooltip">${x.how}</span>`
+            : `<small>${x.how}</small>${x.need > 1 ? `<span class="stamp-bar" title="${x.have.toLocaleString()} of ${x.need.toLocaleString()}"><i style="width:${(x.have / x.need) * 100}%"></i></span><small class="stamp-n">${x.have.toLocaleString()} / ${x.need.toLocaleString()}</small>` : ''}`}
         </div>`).join('')}</div>
     </section>`;
 }

@@ -163,11 +163,13 @@ export async function passCard(p) {
   g.fillStyle = C.dim; g.font = `500 20px ${BODY}`; g.fillText(`${p.stamps[0]} of ${p.stamps[1]} station stamps collected`, rx, 430);
 
   // a row of stamp circles under the card
+  // up to two rows of stamp circles (19 a row fit across the card)
+  const perRow = p.stampList.length > 16 ? Math.ceil(p.stampList.length / 2) : 16, gap = Math.min(66, (W - 2 * 92) / Math.max(1, perRow - 1));
   p.stampList.forEach((s, i) => {
-    const x = 92 + i * 66, y = 500;
-    g.beginPath(); g.arc(x, y, 26, 0, Math.PI * 2);
+    const x = 92 + (i % perRow) * gap, y = 490 + Math.floor(i / perRow) * 58;
+    g.beginPath(); g.arc(x, y, 24, 0, Math.PI * 2);
     g.setLineDash(s.got ? [] : [5, 5]); g.lineWidth = s.got ? 4 : 2.5; g.strokeStyle = s.got ? s.c : C.rail; g.stroke(); g.setLineDash([]);
-    g.fillStyle = s.got ? s.c : C.rail; g.font = `22px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = s.got ? s.c : C.rail; g.font = `20px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(s.k, x, y + 1); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   });
   footer(g);

@@ -5,11 +5,13 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Changed
+- Stamps are worth 75 ride points each (was 150), so the bigger set doesn't push everyone up a tier.
 - My map's single-entry section is now called One-stop lines, so it isn't confused with the Local service.
 - The repository is reorganised: the web app lives in `web/`, the Mac app in `macos/`, tests in `tests/`.
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- 21 more station stamps (37 in all), from ten thousand episodes to donghua, music videos and a favourite voice actor. Uncollected stamps show your progress; hovering or tapping a collected one shows how you earned it.
 - Your pass card (and its share image) shows your AniList profile banner, faded toward your profile color.
 - Liveries (themes): 20 of them, anime, Catppuccin and editor classics, each with a dark and a light mode. Pick one on My pass; switch light and dark from the button at the top of any page (it follows your system until you do). The Mac app's window matches.
 - An Episodes tab on each anime page: every episode's title, Japanese title, air date, length, summary and picture (from Kitsu), as a List or as Icons, with watched, next up and upcoming marks, Crunchyroll links, and Watched up to here to set your progress.

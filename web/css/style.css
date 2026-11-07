@@ -647,6 +647,20 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .stamp b { font-size: .92rem; line-height: 1.25; }
 .stamp small { color: var(--dim); font-size: .78rem; line-height: 1.35; }
 .stamp:not(.got) b { color: var(--dim); }
+.stamp { position: relative; }
+.stamp.got { cursor: help; border-radius: 12px; }
+/* how a collected stamp was earned, on hover, focus or tap */
+.stamp-how {
+  position: absolute; bottom: calc(100% - 4px); left: 50%; z-index: 2; width: max-content; max-width: 190px;
+  padding: 7px 11px; border-radius: 10px; background: var(--ink); color: var(--night); font-size: .8rem; font-weight: 700; line-height: 1.35;
+  box-shadow: 0 10px 24px #0006; opacity: 0; transform: translate(-50%, 6px); transition: opacity .15s, transform .15s; pointer-events: none;
+}
+.stamp-how::after { content: ''; position: absolute; top: 100%; left: 50%; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--ink); }
+.stamp.got:hover .stamp-how, .stamp.got:focus-visible .stamp-how, .stamp.got:focus .stamp-how { opacity: 1; transform: translate(-50%, 0); }
+.stamp.got:focus-visible { outline-offset: 6px; }
+.stamp-bar { width: 70%; height: 4px; border-radius: 2px; background: var(--rail); overflow: hidden; margin-top: 4px; }
+.stamp-bar i { display: block; height: 100%; background: color-mix(in srgb, var(--c) 70%, var(--dim)); border-radius: 2px; }
+.stamp .stamp-n { font-size: .72rem; font-variant-numeric: tabular-nums; }
 
 /* ---------- backup sync ---------- */
 .transfers { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 18px; margin-top: 36px; align-items: start; }
