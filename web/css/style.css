@@ -99,6 +99,8 @@ section { margin-top: 56px; }
   border-bottom: 1px solid var(--rail);
 }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+/* in the Mac app the window's close/minimize/zoom buttons sit at the header's top left (hidden in full screen) */
+[data-app]:not([data-fullscreen]) .brand { margin-left: 66px; }
 .roundel {
   width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
   border: 6px solid var(--platform); background: var(--night);

@@ -28,6 +28,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - CI scans the whole git history for secrets, not just the commits in each push.
 
 ### Fixed
+- Mac app: the logo no longer runs into the window's close, minimize and full-screen buttons, and the window title no longer draws over the header.
 - The next tier's name on My pass is readable in light mode.
 - Share cards no longer leave out avatars and banners that the page had already shown.
 - Status tags, summaries, map stations and page banners no longer use colors that only worked on the dark background.

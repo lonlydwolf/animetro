@@ -33,7 +33,7 @@ final class Files: NSObject, WKURLSchemeHandler {
   func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 }
 
-final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
   var window: NSWindow!
   var view: WKWebView!
   var titleWatch: NSKeyValueObservation?
@@ -54,7 +54,9 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
                       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
     window.title = "Animetro"
+    window.delegate = self
     window.titlebarAppearsTransparent = true
+    window.titleVisibility = .hidden // the page's header shows the name; the title still names the window in menus and Mission Control
     look(mode: UserDefaults.standard.string(forKey: "mode") ?? "dark", bg: UserDefaults.standard.string(forKey: "bg") ?? "#131833")
     window.minSize = NSSize(width: 420, height: 500)
     window.contentView = view
@@ -92,6 +94,14 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
   func webView(_ webView: WKWebView, createWebViewWith config: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
     if let url = action.request.url { NSWorkspace.shared.open(url) }
     return nil
+  }
+
+  // The page leaves room for the close/minimize/zoom buttons, which full screen hides; tell each page which it is.
+  func windowDidEnterFullScreen(_ note: Notification) { markFullScreen() }
+  func windowDidExitFullScreen(_ note: Notification) { markFullScreen() }
+  func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { markFullScreen() }
+  func markFullScreen() {
+    view.evaluateJavaScript("document.documentElement.toggleAttribute('data-fullscreen', \(window.styleMask.contains(.fullScreen)))")
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
