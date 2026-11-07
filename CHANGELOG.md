@@ -4,6 +4,8 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-07
+
 ### Changed
 - Stamps are worth 75 ride points each (was 150), so the bigger set doesn't push everyone up a tier.
 - My map's single-entry section is now called One-stop lines, so it isn't confused with the Local service.
@@ -31,6 +33,11 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - CI scans the whole git history for secrets, not just the commits in each push.
 
 ### Fixed
+- Home: a +1 clicked while the page redraws can't log the same episode twice, and the Recaps and Chimes toggles stay visible when every show is waiting for new episodes.
+- Episodes tab: on an airing show with no schedule on AniList, only episodes with a past air date can be marked watched.
+- Need a recap? from the Episodes tab switches to Overview and shows the recap.
+- Map Rewind starts at your earliest start date, and announced sequels without a year stay under construction in every year.
+- Junctions follow the order on screen when the stop they leave from is hidden.
 - Episodes tab: episodes that haven't aired (including every episode of an unreleased show) can't be marked watched, so they can't complete a show early; the same limit applies to +1.
 - Episodes tab: quick clicks save one at a time, so older progress can't overwrite newer progress, and a slow range load can't replace the range you picked.
 - Episodes tab: after watching exactly 100 of 100 episodes the tab opens on 1-100 instead of an empty page.
@@ -87,7 +94,8 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ### Added
 - First version: franchise watch orders as train lines, search, details, Explore, Departures, Gacha and My pass.
 
-[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/lonlydwolf/animetro/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/lonlydwolf/animetro/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/lonlydwolf/animetro/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/lonlydwolf/animetro/compare/v0.3.0...v0.4.0
