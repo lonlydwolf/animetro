@@ -46,13 +46,14 @@ function render() {
     <section class="home-hero">
       <p class="hint" style="margin:0">${greeting()},</p>
       <h1>${esc(user.name)}</h1>
+      <p class="head-pills" style="margin:10px 0 0">
+        <button class="tag sound" id="recaps" aria-pressed="${recapOn()}" title="Recap where you stopped on shows you're watching, not just paused ones">${recapOn() ? 'Recaps on' : 'Recaps off'}</button>
+        <button class="tag sound" id="sound" aria-pressed="${soundOn()}">${soundOn() ? 'Chimes on' : 'Chimes off'}</button></p>
       <p class="home-sum">${riding.length ? `${ready.length} ready to watch${left ? ` (${minutes(left)} of episodes)` : ''} · ${waiting.length} waiting for new episodes${today ? `, ${today} arriving today` : ''}` : 'Nothing on your Watching list yet.'}</p>
     </section>
 
     ${ready.length ? `<section>
-      <div class="section-head"><h2>Ready to watch</h2><span class="head-pills">
-        <button class="tag sound" id="recaps" aria-pressed="${recapOn()}" title="Recap where you stopped on shows you're watching, not just paused ones">${recapOn() ? 'Recaps on' : 'Recaps off'}</button>
-        <button class="tag sound" id="sound" aria-pressed="${soundOn()}">${soundOn() ? 'Chimes on' : 'Chimes off'}</button></span></div>
+      <div class="section-head"><h2>Ready to watch</h2></div>
       <div class="rides">${ready.map(ride).join('')}</div></section>` : ''}
 
     ${waiting.length ? `<section>
