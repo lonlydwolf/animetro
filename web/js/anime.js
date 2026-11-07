@@ -223,7 +223,7 @@ async function save(change) {
 }
 
 // ---- Episodes tab ------------------------------------------------------------
-const eps = { view: store.get('animetro.epView') === 'icons' ? 'icons' : 'list', from: null, rows: null, kid: undefined, streams: null, total: 0, note: '' };
+const eps = { view: store.get('animetro.epView') === 'icons' ? 'icons' : 'list', from: 0, gen: 0, rows: null, kid: undefined, streams: null, total: 0, note: '' };
 
 function tab(name, remember = true) {
   document.querySelectorAll('[data-tab]').forEach(b => {
@@ -233,21 +233,24 @@ function tab(name, remember = true) {
     $(`#panel-${b.dataset.tab}`).hidden = !on;
   });
   if (remember) { const p = qs(); name === 'episodes' ? p.set('tab', name) : p.delete('tab'); history.replaceState(null, '', `?${p}`); }
-  if (name === 'episodes' && eps.from === null) loadEps(Math.floor((entry?.progress || 0) / PAGE) * PAGE); // open on the range with your next episode
+  if (name === 'episodes' && !eps.gen) loadEps(Math.floor((entry?.progress || 0) / PAGE) * PAGE); // open on the range with your next episode
 }
 
 async function loadEps(from) {
-  eps.from = from;
+  const gen = ++eps.gen; // a newer range request makes this one stale
   const panel = $('#panel-episodes');
   if (!eps.rows) panel.innerHTML = '<div class="loading"><div class="train" aria-hidden="true"><i></i><i></i><i></i></div><p>Fetching episodes…</p></div>';
   else $('#eps')?.setAttribute('aria-busy', 'true');
-  let kitsu = [], count = 0;
+  let kitsu = [], count = 0, note;
   try {
     if (eps.kid === undefined) eps.kid = await kitsuId(media);
     if (eps.kid) ({ eps: kitsu, count } = await kitsuRange(eps.kid, from, episodeTotal(media) - from));
-    eps.note = eps.kid ? 'Titles, pictures and summaries from <a href="https://kitsu.app" target="_blank" rel="noopener">Kitsu</a>.' : "Kitsu doesn't have this show, so only numbers and dates are shown.";
-  } catch { eps.note = "Couldn't reach Kitsu for titles and pictures. Try again later."; }
+    note = eps.kid ? 'Titles, pictures and summaries from <a href="https://kitsu.app" target="_blank" rel="noopener">Kitsu</a>.' : "Kitsu doesn't have this show, so only numbers and dates are shown.";
+  } catch { note = "Couldn't reach Kitsu for titles and pictures. Try again later."; }
   eps.streams ??= await gql('query($id:Int){Media(id:$id){streamingEpisodes{title thumbnail url site}}}', { id }).then(d => d.Media.streamingEpisodes).catch(() => []);
+  if (gen !== eps.gen) return;
+  eps.note = note;
+  eps.from = from;
   eps.total = Math.max(eps.total, episodeTotal(media, count));
   const all = rows({ total: eps.total, kitsu, streams: eps.streams, schedule: media.airingSchedule.nodes, aired: airedCount(media) });
   eps.rows = all.slice(from, from + PAGE);
