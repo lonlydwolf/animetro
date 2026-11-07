@@ -8,6 +8,7 @@ header();
 const page = $('#page');
 const M = 'id title{english romaji} episodes duration format status averageScore isAdult coverImage{large color} nextAiringEpisode{episode airingAt}';
 let user, riding = [], planning = [], paused = [], budget = 0;
+const pending = new Set(); // shows with a save on its way; their buttons stay off across redraws
 
 // custom lists repeat entries; 18+ titles stay hidden unless 18+ is on
 const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()].filter(e => !e.media.isAdult || prefs.adult());
@@ -113,10 +114,10 @@ function ride({ e, r }) {
         <div class="bar"><i style="width:${pct}%"></i></div>
         <p class="ride-status">Ep ${e.progress}${total ? ` / ${total}` : ''} · ${status}</p>
         ${next ? `<p class="ride-next">Ep ${next.episode} airs in <b data-at="${next.airingAt}">${countdown(next.airingAt - Date.now() / 1000)}</b></p>` : ''}
-        ${!r.left && !r.airing && user.canWrite && e.status !== 'COMPLETED' ? '<button class="tag add" data-complete>Mark completed</button>' : ''}
+        ${!r.left && !r.airing && user.canWrite && e.status !== 'COMPLETED' ? `<button class="tag add" data-complete${pending.has(m.id) ? ' disabled' : ''}>Mark completed</button>` : ''}
         ${recapOn() && e.progress > 0 ? `<a class="ride-recap" href="anime.html?id=${m.id}&recap=1">Recap ↩</a>` : ''}
       </div>
-      ${canPlus ? `<button class="ride-plus" data-plus aria-label="Watched episode ${e.progress + 1}">+1</button>` : ''}
+      ${canPlus ? `<button class="ride-plus" data-plus aria-label="Watched episode ${e.progress + 1}"${pending.has(m.id) ? ' disabled' : ''}>+1</button>` : ''}
     </div>`;
 }
 
@@ -124,7 +125,9 @@ page.addEventListener('click', async ev => {
   const card = ev.target.closest('.ride');
   const plus = ev.target.closest('[data-plus]'), done = ev.target.closest('[data-complete]');
   if (card && (plus || done)) {
-    const e = riding.find(x => x.media.id === +card.dataset.id), m = e.media;
+    const e = riding.find(x => x.media.id === +card.dataset.id), m = e?.media;
+    if (!e || pending.has(m.id)) return;
+    pending.add(m.id);
     const progress = done ? e.progress : e.progress + 1;
     const finished = done || finishes(progress, m);
     (plus || done).disabled = true;
@@ -142,6 +145,8 @@ page.addEventListener('click', async ev => {
         render();
       }
     } catch (err) { toast(err.message); (plus || done).disabled = false; }
+    pending.delete(m.id);
+    document.querySelectorAll(`.ride[data-id="${m.id}"] [data-plus], .ride[data-id="${m.id}"] [data-complete]`).forEach(b => b.removeAttribute('disabled'));
     return;
   }
   const chip = ev.target.closest('[data-fit]');
