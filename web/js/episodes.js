@@ -29,8 +29,8 @@ const day = s => (s ? new Date(`${s}T12:00:00`) : null); // Kitsu dates are plai
 
 // One row per episode, 1..total.
 //   total: how many episodes to list; kitsu: Kitsu episode attributes; streams: AniList streamingEpisodes;
-//   schedule: AniList airingSchedule nodes ({ episode, airingAt }).
-export function rows({ total, kitsu = [], streams = [], schedule = [], now = Date.now() }) {
+//   schedule: AniList airingSchedule nodes ({ episode, airingAt }); aired: airedCount() of the show.
+export function rows({ total, kitsu = [], streams = [], schedule = [], aired = Infinity, now = Date.now() }) {
   const k = new Map(kitsu.filter(e => e.number).map(e => [e.number, e]));
   const s = new Map();
   for (const st of streams) {
@@ -42,7 +42,7 @@ export function rows({ total, kitsu = [], streams = [], schedule = [], now = Dat
     const n = i + 1, e = k.get(n), st = s.get(n);
     const t = e?.titles || {};
     const at = air.get(n) ? air.get(n) * 1000 : day(e?.airdate)?.getTime() || null;
-    const upcoming = !!at && at > now;
+    const upcoming = n > aired || (!!at && at > now); // not out yet: can't be marked watched
     return {
       n,
       title: t.en_us || t.en || e?.canonicalTitle || st?.title.replace(/^Episode \d+\s*[-:]\s*/i, '') || '',
@@ -55,6 +55,10 @@ export function rows({ total, kitsu = [], streams = [], schedule = [], now = Dat
     };
   });
 }
+
+// How many episodes have aired, from AniList: none before release, everything before the next airing episode while
+// it's airing, otherwise no limit (finished shows; air dates in rows() still catch scheduled ones).
+export const airedCount = m => (m.status === 'NOT_YET_RELEASED' ? 0 : m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : Infinity);
 
 // Where an episode stands for you, from your progress.
 export const epState = (r, progress) => (r.n <= progress ? 'watched' : r.upcoming ? 'upcoming' : r.n === progress + 1 ? 'next' : '');

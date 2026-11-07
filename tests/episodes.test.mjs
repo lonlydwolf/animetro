@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rows, epState, episodeTotal } from '../web/js/episodes.js';
+import { rows, epState, episodeTotal, airedCount } from '../web/js/episodes.js';
 
 const now = Date.UTC(2026, 0, 10);
 const r = rows({
@@ -35,4 +35,13 @@ test('list length: the final count when known, else what has aired or is schedul
   assert.equal(episodeTotal({ nextAiringEpisode: { episode: 8 }, airingSchedule: { nodes: [{ episode: 9 }] } }), 9);
   assert.equal(episodeTotal({ nextAiringEpisode: { episode: 8 }, airingSchedule: { nodes: [] } }, 1410), 7); // Kitsu placeholders ignored
   assert.equal(episodeTotal({ airingSchedule: { nodes: [] } }, 26), 26);
+});
+
+test('episodes that have not aired yet are upcoming, even without an air date', () => {
+  assert.equal(airedCount({ status: 'NOT_YET_RELEASED', episodes: 7 }), 0);
+  assert.equal(airedCount({ status: 'RELEASING', nextAiringEpisode: { episode: 5 } }), 4);
+  assert.equal(airedCount({ status: 'FINISHED', episodes: 12 }), Infinity);
+  const unreleased = rows({ total: 3, aired: 0, now });
+  assert.ok(unreleased.every(x => x.upcoming), 'no episode of an unreleased show can be marked watched');
+  assert.deepEqual(rows({ total: 6, aired: 4, now }).map(x => epState(x, 2)), ['watched', 'watched', 'next', '', 'upcoming', 'upcoming']);
 });
