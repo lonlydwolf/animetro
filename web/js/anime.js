@@ -1,9 +1,10 @@
-import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp } from './api.js';
+import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp, store } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
 import { finishOdds } from './odds.js';
 import { finishes } from './fit.js';
+import { kitsuId, kitsuRange, rows, epState, episodeTotal, PAGE } from './episodes.js';
 
 header();
 const id = +qs().get('id');
@@ -11,12 +12,13 @@ const cap = s => (s ? s[0] + s.slice(1).toLowerCase().replace(/_/g, ' ') : '');
 const date = d => (d?.year ? new Date(d.year, (d.month || 1) - 1, d.day || 1).toLocaleDateString(undefined, { year: 'numeric', month: d.month ? 'short' : undefined, day: d.day ? 'numeric' : undefined }) : '');
 
 const Q = `query($id:Int){ Media(id:$id,type:ANIME){
-  id title{english romaji native} synonyms format status episodes duration season seasonYear source countryOfOrigin
+  id idMal title{english romaji native} synonyms format status episodes duration season seasonYear source countryOfOrigin
   startDate{year month day} endDate{year month day} averageScore meanScore popularity favourites genres isAdult
   description bannerImage coverImage{extraLarge color} siteUrl hashtag
   studios(isMain:true){nodes{name}}
   trailer{id site}
   nextAiringEpisode{episode airingAt}
+  airingSchedule(notYetAired:true,perPage:25){nodes{episode airingAt}}
   tags{name rank isMediaSpoiler}
   rankings{rank type allTime context year season}
   externalLinks{site url type color icon}
@@ -52,6 +54,7 @@ async function boot() {
   const ranks = m.rankings.filter(r => r.allTime || r.season).slice(0, 4);
   const streams = m.externalLinks.filter(l => l.type === 'STREAMING');
   const recs = m.recommendations.nodes.map(n => n.mediaRecommendation).filter(r => r && (!r.isAdult || prefs.adult()));
+  const epTotal = episodeTotal(m), hasEps = epTotal > 1 || (epTotal === 1 && m.format !== 'MOVIE');
   const hasLine = m.relations.edges.some(e => ['PREQUEL', 'SEQUEL', 'SIDE_STORY', 'PARENT', 'SPIN_OFF', 'ALTERNATIVE', 'SUMMARY'].includes(e.relationType));
 
   $('#page').innerHTML = `
@@ -78,6 +81,12 @@ async function boot() {
       </div>
     </section>
 
+    ${hasEps ? `<div class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview">Overview</button>
+      <button role="tab" id="tab-episodes" aria-controls="panel-episodes" data-tab="episodes">Episodes <small>${epTotal}</small></button>
+    </div>` : ''}
+
+    <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
     <div class="anime-body">
       <div>
         <section style="margin-top:0">
@@ -121,7 +130,9 @@ async function boot() {
       </aside>
     </div>
 
-    ${recs.length ? `<section><div class="section-head"><h2>If you like this</h2></div><div id="recs" class="row"></div></section>` : ''}`;
+    ${recs.length ? `<section><div class="section-head"><h2>If you like this</h2></div><div id="recs" class="row"></div></section>` : ''}
+    </div>
+    ${hasEps ? `<div id="panel-episodes" role="tabpanel" aria-labelledby="tab-episodes" hidden></div>` : ''}`;
 
   if (recs.length) cards($('#recs'), recs);
   $('#spoil')?.addEventListener('click', e => {
@@ -129,6 +140,7 @@ async function boot() {
     e.target.remove();
   });
   renderListControls();
+  if (hasEps) tab(qs().get('tab') === 'episodes' ? 'episodes' : 'overview', false);
   odds().catch(() => {}); // a nice-to-have: stay quiet if it fails
 }
 
@@ -200,8 +212,103 @@ async function save(change) {
     chime(entry.status === 'COMPLETED' && entry.progress ? 'done' : 'tick');
     toast(entry.status === 'COMPLETED' ? 'Completed. Where to next?' : `Saved: ${STATUS[entry.status]}, ep ${entry.progress}`);
     renderListControls();
+    if (eps.rows) drawEps();
   } catch (e) { toast(e.message); }
 }
+
+// ---- Episodes tab ------------------------------------------------------------
+const eps = { view: store.get('animetro.epView') === 'icons' ? 'icons' : 'list', from: null, rows: null, kid: undefined, streams: null, total: 0, note: '' };
+
+function tab(name, remember = true) {
+  document.querySelectorAll('[data-tab]').forEach(b => {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+    $(`#panel-${b.dataset.tab}`).hidden = !on;
+  });
+  if (remember) { const p = qs(); name === 'episodes' ? p.set('tab', name) : p.delete('tab'); history.replaceState(null, '', `?${p}`); }
+  if (name === 'episodes' && eps.from === null) loadEps(Math.floor((entry?.progress || 0) / PAGE) * PAGE); // open on the range with your next episode
+}
+
+async function loadEps(from) {
+  eps.from = from;
+  const panel = $('#panel-episodes');
+  if (!eps.rows) panel.innerHTML = '<div class="loading"><div class="train" aria-hidden="true"><i></i><i></i><i></i></div><p>Fetching episodes…</p></div>';
+  else $('#eps')?.setAttribute('aria-busy', 'true');
+  let kitsu = [], count = 0;
+  try {
+    if (eps.kid === undefined) eps.kid = await kitsuId(media);
+    if (eps.kid) ({ eps: kitsu, count } = await kitsuRange(eps.kid, from, episodeTotal(media) - from));
+    eps.note = eps.kid ? 'Titles, pictures and summaries from <a href="https://kitsu.app" target="_blank" rel="noopener">Kitsu</a>.' : "Kitsu doesn't have this show, so only numbers and dates are shown.";
+  } catch { eps.note = "Couldn't reach Kitsu for titles and pictures. Try again later."; }
+  eps.streams ??= await gql('query($id:Int){Media(id:$id){streamingEpisodes{title thumbnail url site}}}', { id }).then(d => d.Media.streamingEpisodes).catch(() => []);
+  eps.total = Math.max(eps.total, episodeTotal(media, count));
+  const all = rows({ total: eps.total, kitsu, streams: eps.streams, schedule: media.airingSchedule.nodes });
+  eps.rows = all.slice(from, from + PAGE);
+  drawEps();
+}
+
+function drawEps() {
+  const progress = entry?.progress || 0, canMark = user?.canWrite;
+  eps.rows.forEach(r => (r.state = epState(r, progress)));
+  const when = r => (r.state === 'upcoming' ? `airs in <span data-at="${r.at / 1000}">${countdown(r.at / 1000 - Date.now() / 1000)}</span>`
+    : r.at ? new Date(r.at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '');
+  const badge = r => (r.state === 'watched' ? '<span class="tag s-COMPLETED">✓ Watched</span>' : r.state === 'next' ? '<span class="tag next-up">Next up</span>' : r.state === 'upcoming' ? '<span class="tag soon">Upcoming</span>' : '');
+  const mark = r => (canMark && r.n > progress && !r.upcoming ? `<button class="tag add" data-upto="${r.n}" title="Set your progress to episode ${r.n}">Watched up to here</button>` : '');
+  const name = r => esc(r.title || `Episode ${r.n}`);
+  const ranges = eps.total > PAGE ? Array.from({ length: Math.ceil(eps.total / PAGE) }, (_, i) => i * PAGE) : [];
+  const blur = nsfw(media), aired = media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : eps.total;
+
+  $('#panel-episodes').innerHTML = `
+    <div class="eps-tools">
+      <div class="seg" role="group" aria-label="View as">
+        <button data-epview="list" aria-pressed="${eps.view === 'list'}">List</button>
+        <button data-epview="icons" aria-pressed="${eps.view === 'icons'}">Icons</button>
+      </div>
+      ${ranges.length ? `<div class="chips" role="radiogroup" aria-label="Episodes">${ranges.map(f =>
+        `<label><input type="radio" name="eprange" value="${f}"${f === eps.from ? ' checked' : ''}><span>${f + 1}–${Math.min(f + PAGE, eps.total)}</span></label>`).join('')}</div>` : ''}
+      <p class="hint" style="margin:0">${progress ? (progress >= aired ? "You're caught up. " : `You've watched ${progress} of ${aired}. `) : ''}${eps.note}</p>
+    </div>
+    ${eps.view === 'list'
+      ? `<ol class="eps-list" id="eps" start="${eps.from + 1}">${eps.rows.map(r => `
+        <li class="ep ${r.state}" id="ep-${r.n}">
+          <span class="ep-n">${r.n}</span>
+          <div class="ep-main">
+            <b>${name(r)}</b>
+            <small>${[r.native && esc(r.native), when(r), r.length && `${r.length} min`].filter(Boolean).join(' · ')}</small>
+            ${r.summary ? `<details><summary>Summary</summary><p>${esc(r.summary)}</p></details>` : ''}
+          </div>
+          <div class="ep-side">${badge(r)}${r.watch && safeUrl(r.watch.url.replace(/^http:/, 'https:')) ? `<a class="tag" href="${safeUrl(r.watch.url.replace(/^http:/, 'https:'))}" target="_blank" rel="noopener">${esc(r.watch.site)} ↗</a>` : ''}${mark(r)}</div>
+        </li>`).join('')}</ol>`
+      : `<ol class="eps-grid" id="eps">${eps.rows.map(r => `
+        <li class="ep-card ${r.state}" id="ep-${r.n}">
+          <div class="ep-thumb${blur}">${safeUrl(r.thumb) ? `<img src="${safeUrl(r.thumb)}" alt="" loading="lazy">` : `<span class="ep-none">${r.n}</span>`}
+            <span class="ep-n">EP ${r.n}</span>${r.state === 'watched' ? '<span class="ep-check" aria-label="Watched">✓</span>' : ''}</div>
+          <b title="${name(r)}">${name(r)}</b>
+          <small>${[when(r), r.length && `${r.length} min`].filter(Boolean).join(' · ') || '&nbsp;'}</small>
+          <div class="ep-side">${badge(r)}${mark(r)}</div>
+        </li>`).join('')}</ol>`}`;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]');
+  if (t) return tab(t.dataset.tab);
+  const v = e.target.closest('[data-epview]');
+  if (v) { eps.view = v.dataset.epview; store.set('animetro.epView', eps.view); drawEps(); return; }
+  const up = e.target.closest('[data-upto]');
+  if (up) {
+    const progress = +up.dataset.upto;
+    save({ progress, ...(finishes(progress, media) ? { status: 'COMPLETED' } : !entry || entry.status === 'PLANNING' ? { status: 'CURRENT' } : {}) });
+  }
+});
+document.addEventListener('change', e => { if (e.target.name === 'eprange') loadEps(+e.target.value); });
+// arrow keys move between the two tabs
+document.addEventListener('keydown', e => {
+  const t = e.target.closest?.('[data-tab]');
+  if (!t || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const next = t.dataset.tab === 'overview' ? 'episodes' : 'overview';
+  tab(next); $(`#tab-${next}`).focus();
+});
 
 // Sites without a search URL: copy the title as the link opens, so it's ready to paste.
 document.addEventListener('click', e => {

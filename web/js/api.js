@@ -4,7 +4,7 @@
 const API = 'https://graphql.anilist.co';
 const KEY = { token: 'animetro.token', client: 'animetro.client', user: 'animetro.user', me: 'animetro.me', adult: 'animetro.adult', blur: 'animetro.blur', state: 'animetro.loginState' };
 
-const store = {
+export const store = {
   get: (k, s = localStorage) => { try { return s.getItem(k); } catch { return null; } },
   set: (k, v, s = localStorage) => { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} },
 };
