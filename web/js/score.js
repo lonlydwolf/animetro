@@ -3,14 +3,14 @@
 
 // Train service types, slowest to fastest. `at` = ride points needed.
 export const TIERS = [
-  { at: 0, name: 'Platform Ticket', jp: '入場券', c: '#9caeb7' },
-  { at: 300, name: 'Local', jp: '各駅停車', c: '#00a650' },
-  { at: 1500, name: 'Rapid', jp: '快速', c: '#00a7db' },
-  { at: 4000, name: 'Express', jp: '急行', c: '#9b7cb6' },
-  { at: 8000, name: 'Limited Express', jp: '特急', c: '#f39700' },
-  { at: 15000, name: 'Shinkansen', jp: '新幹線', c: '#e60012' },
-  { at: 30000, name: 'Maglev', jp: 'リニア', c: '#ffd23f' },
-  { at: 60000, name: 'Galaxy Express', jp: '銀河鉄道', c: '#c063ff' },
+  { at: 0, name: 'Platform Ticket', jp: '入場券', c: '#9caeb7', about: 'Just through the gates. Every rider starts here.' },
+  { at: 300, name: 'Local', jp: '各駅停車', c: '#00a650', about: 'Stopping at every station while you find your line.' },
+  { at: 1500, name: 'Rapid', jp: '快速', c: '#00a7db', about: 'Skipping the small stops. You know what you like.' },
+  { at: 4000, name: 'Express', jp: '急行', c: '#9b7cb6', about: 'A regular commuter with favourite lines.' },
+  { at: 8000, name: 'Limited Express', jp: '特急', c: '#f39700', about: 'Reserved seats only. Serious hours on the rails.' },
+  { at: 15000, name: 'Shinkansen', jp: '新幹線', c: '#e60012', about: 'Bullet train. Whole seasons fly past the window.' },
+  { at: 30000, name: 'Maglev', jp: 'リニア', c: '#ffd23f', about: 'Floating above the tracks. Few riders get this far.' },
+  { at: 60000, name: 'Galaxy Express', jp: '銀河鉄道', c: '#c063ff', about: 'Off the map and into the stars. A legend of the line.' },
 ];
 
 const n = (arr, key, val) => arr?.find(x => x[key] === val)?.count || 0;

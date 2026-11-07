@@ -132,7 +132,8 @@ function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
         </div>
       </div>
       <ol class="tier-line">${TIERS.map((t, j) => `
-        <li class="${j < i ? 'passed' : j === i ? 'now' : ''}" style="--c:${t.c}"><i></i><b>${t.name}</b><small>${t.at.toLocaleString()}</small></li>`).join('')}</ol>
+        <li class="${j < i ? 'passed' : j === i ? 'now' : ''}" style="--c:${t.c}" tabindex="0"><i></i><b>${t.name}</b><small>${t.at.toLocaleString()}</small>
+          <span class="tip" role="tooltip">${t.about}<small>${j < i ? 'Passed' : j === i ? "You're here" : `${(t.at - points).toLocaleString()} points to go`}</small></span></li>`).join('')}</ol>
       <div class="points">${parts.map(([k, v, how]) => `<div><b>${v.toLocaleString()}</b><span>${k}</span><small>${how}</small></div>`).join('')}</div>
     </section>
     <section>
@@ -140,7 +141,7 @@ function rankHTML({ points, parts, stamps, i, tier, next, pct }) {
       <div class="stamps">${stamps.map((x, j) => `
         <div class="stamp${x.got ? ' got' : ''}" style="--c:var(--${INK[j % INK.length]});--r:${((j * 37) % 24) - 12}deg"${x.got ? ' tabindex="0"' : ''}>
           <span class="ink" lang="ja" aria-hidden="true">${x.k}</span><b>${x.name}</b>
-          ${x.got ? `<small>Collected</small><span class="stamp-how" role="tooltip">${x.how}</span>`
+          ${x.got ? `<small>Collected</small><span class="tip" role="tooltip">${x.how}</span>`
             : `<small>${x.how}</small>${x.need > 1 ? `<span class="stamp-bar" title="${x.have.toLocaleString()} of ${x.need.toLocaleString()}"><i style="width:${(x.have / x.need) * 100}%"></i></span><small class="stamp-n">${x.have.toLocaleString()} / ${x.need.toLocaleString()}</small>` : ''}`}
         </div>`).join('')}</div>
     </section>`;
