@@ -10,6 +10,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- Your pass card (and its share image) shows your AniList profile banner, faded toward your profile color.
 - Liveries (themes): 20 of them, anime, Catppuccin and editor classics, each with a dark and a light mode. Pick one on My pass; switch light and dark from the button at the top of any page (it follows your system until you do). The Mac app's window matches.
 - An Episodes tab on each anime page: every episode's title, Japanese title, air date, length, summary and picture (from Kitsu), as a List or as Icons, with watched, next up and upcoming marks, Crunchyroll links, and Watched up to here to set your progress.
 - My map has the Express / Rapid / Local toggle from the line map; its counts follow the chosen service, and it's kept in the address.
@@ -24,6 +25,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - CI scans the whole git history for secrets, not just the commits in each push.
 
 ### Fixed
+- Share cards no longer leave out avatars and banners that the page had already shown.
 - Status tags, summaries, map stations and page banners no longer use colors that only worked on the dark background.
 - Saving several list entries at once no longer reports success when only some were saved.
 - Catching up with an airing show no longer marks it Completed; only reaching the known final episode does.

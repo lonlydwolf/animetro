@@ -55,7 +55,7 @@ async function boot() {
 
   page.innerHTML = `
     <div class="pass-grid">
-      <div class="ic" style="--pc:${pc}">
+      <div class="ic${safeUrl(user.bannerImage) ? ' has-banner' : ''}" style="--pc:${pc}${safeUrl(user.bannerImage) ? `;--banner:url(${safeUrl(user.bannerImage)})` : ''}">
         <div class="ic-top"><span>Animetro pass</span><span class="ic-tier" style="--tc:${rank.tier.c}">${rank.tier.name}</span><i class="ic-chip"></i></div>
         <div class="ic-who"><img src="${safeUrl(user.avatar?.large)}" alt=""><div><b>${esc(user.name)}</b>
           <small>Rider since ${new Date(d.User.createdAt * 1000).getFullYear()}${user.canWrite ? '' : ', read only'}</small></div></div>
@@ -107,7 +107,7 @@ async function boot() {
   $('#logout').onclick = () => { logout(); location.reload(); };
   const INK = ['#f39700', '#e60012', '#00a7db', '#00a650', '#9b7cb6', '#00ada9', '#bb641d', '#d7c447'];
   $('#card').onclick = () => showCard(() => passCard({
-    name: user.name, avatar: user.avatar.large, color: pc, since: new Date(d.User.createdAt * 1000).getFullYear(),
+    name: user.name, avatar: user.avatar.large, banner: safeUrl(user.bannerImage) ? user.bannerImage : null, color: pc, since: new Date(d.User.createdAt * 1000).getFullYear(),
     tier: rank.tier, points: rank.points, next: rank.next, pct: rank.pct, persona,
     stats: [[String(s.count), 'titles'], [s.episodesWatched.toLocaleString(), 'episodes'], [(s.minutesWatched / 1440).toFixed(1), 'days riding'], [s.meanScore ? String(Math.round(s.meanScore)) : '–', 'mean score']],
     stamps: [rank.stamps.filter(x => x.got).length, rank.stamps.length],

@@ -114,7 +114,7 @@ export async function lineCard(line) {
 export async function passCard(p) {
   await ready();
   const [c, g] = canvas();
-  const avatar = await img(p.avatar);
+  const [avatar, banner] = await Promise.all([img(p.avatar), img(p.banner)]);
   g.fillStyle = C.night; g.fillRect(0, 0, W, H);
 
   // the IC card on the left
@@ -123,6 +123,15 @@ export async function passCard(p) {
   grad.addColorStop(0, p.color); grad.addColorStop(1, '#1c2346');
   g.fillStyle = grad; rrect(g, cx, cy, cw, ch, 26); g.fill();
   g.save(); rrect(g, cx, cy, cw, ch, 26); g.clip();
+  if (banner) { // the AniList profile banner, faded like the card on My pass
+    cover(g, banner, cx, cy, cw, ch);
+    const tintFade = g.createLinearGradient(cx, cy, cx + cw * .55, cy + ch);
+    tintFade.addColorStop(0, p.color); tintFade.addColorStop(.5, 'transparent');
+    g.globalAlpha = .45; g.fillStyle = tintFade; g.fillRect(cx, cy, cw, ch); g.globalAlpha = 1;
+    const dark = g.createLinearGradient(cx, cy, cx + cw * .55, cy + ch);
+    dark.addColorStop(0, 'rgba(0,0,0,.1)'); dark.addColorStop(.45, 'rgba(0,0,0,.3)'); dark.addColorStop(1, 'rgba(0,0,0,.7)');
+    g.fillStyle = dark; g.fillRect(cx, cy, cw, ch);
+  }
   g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 38; g.beginPath(); g.arc(cx + cw - 10, cy + 20, 150, 0, Math.PI * 2); g.stroke();
   g.restore();
   g.fillStyle = '#fff'; g.font = `22px ${DISPLAY}`; g.fillText('Animetro pass', cx + 30, cy + 52);

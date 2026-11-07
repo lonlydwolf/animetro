@@ -532,6 +532,9 @@ section { margin-top: 56px; }
   background: linear-gradient(135deg, var(--pc) 0%, color-mix(in srgb, var(--pc) 45%, var(--night)) 100%);
   box-shadow: 0 30px 60px #0008; display: grid; grid-template-rows: auto 1fr auto; color: #fff;
 }
+/* your AniList profile banner behind the card, faded toward your profile color and dark at the edges so the text reads */
+.ic.has-banner { background: linear-gradient(160deg, color-mix(in srgb, var(--pc) 45%, #0000) 0%, #0000004d 45%, #000000b3 100%), var(--banner) center/cover no-repeat, var(--pc); text-shadow: 0 1px 6px #000a; }
+.ic.has-banner::before { border-color: #ffffff12; }
 .ic::before { content: ''; position: absolute; right: -60px; top: -60px; width: 260px; height: 260px; border-radius: 50%; border: 34px solid #ffffff1a; }
 .ic-top { display: flex; justify-content: space-between; align-items: center; position: relative; }
 .ic-top span { font: 400 1.1rem var(--display); }
