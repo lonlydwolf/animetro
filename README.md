@@ -116,7 +116,7 @@ Hentai and other titles AniList marks as adult are hidden everywhere by default.
 | Time watched | 1 per 20 minutes |
 | Each completed title | 20 |
 | Each genre with 3+ titles | 25 |
-| Each station stamp | 150 |
+| Each station stamp (37 to collect) | 75 |
 
 Tiers: Platform Ticket 0, Local 300, Rapid 1,500, Express 4,000, Limited Express 8,000, Shinkansen 15,000, Maglev 30,000, Galaxy Express 60,000.
 
