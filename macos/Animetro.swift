@@ -55,8 +55,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
                       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
     window.title = "Animetro"
     window.titlebarAppearsTransparent = true
-    window.backgroundColor = NSColor(red: 0x13 / 255, green: 0x18 / 255, blue: 0x33 / 255, alpha: 1)
-    window.appearance = NSAppearance(named: .darkAqua)
+    look(mode: UserDefaults.standard.string(forKey: "mode") ?? "dark", bg: UserDefaults.standard.string(forKey: "bg") ?? "#131833")
     window.minSize = NSSize(width: 420, height: 500)
     window.contentView = view
     window.center()
@@ -119,10 +118,18 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
     }
   }
 
-  // Messages from the page. "save": a share card as base64 PNG, saved through a normal Save dialog
+  // Messages from the page. "look": the livery's mode and page color, so the title bar and window match (and
+  // the next launch opens in them). "save": a share card as base64 PNG, saved through a normal Save dialog
   // (a web view can't download files on its own).
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard let body = message.body as? [String: Any], body["type"] as? String == "save",
+    guard let body = message.body as? [String: Any] else { return }
+    if body["type"] as? String == "look", let mode = body["mode"] as? String, let bg = body["bg"] as? String {
+      look(mode: mode, bg: bg)
+      UserDefaults.standard.set(mode, forKey: "mode")
+      UserDefaults.standard.set(bg, forKey: "bg")
+      return
+    }
+    guard body["type"] as? String == "save",
           let name = body["name"] as? String, let b64 = body["data"] as? String, let data = Data(base64Encoded: b64) else { return }
     let panel = NSSavePanel()
     panel.nameFieldStringValue = name
@@ -131,6 +138,12 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDele
       guard response == .OK, let url = panel.url else { return }
       do { try data.write(to: url) } catch { NSAlert(error: error).runModal() }
     }
+  }
+
+  func look(mode: String, bg: String) {
+    window.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
+    guard bg.count == 7, bg.hasPrefix("#"), let v = Int(bg.dropFirst(), radix: 16) else { return }
+    window.backgroundColor = NSColor(red: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
   }
 
   @objc func goHome() { view.load(URLRequest(url: home)) }
