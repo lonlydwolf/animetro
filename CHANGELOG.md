@@ -5,10 +5,12 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Changed
+- My map's single-entry section is now called One-stop lines, so it isn't confused with the Local service.
 - The repository is reorganised: the web app lives in `web/`, the Mac app in `macos/`, tests in `tests/`.
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- My map has the Express / Rapid / Local toggle from the line map; its counts follow the chosen service, and it's kept in the address.
 - Install and update with Homebrew: `brew install --cask lonlydwolf/tap/animetro`.
 - ESLint, a gitleaks secret scan, Dependabot, and a smoke test that launches the built Mac app in CI.
 - Releases are only built after the full CI passes.

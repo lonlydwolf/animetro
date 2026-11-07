@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { franchises, districts, snake } from '../web/js/map.js';
+import { franchises, districts, snake, ride } from '../web/js/map.js';
 
 const md = (id, year, rel = {}, extra = {}) => ({ id, type: 'ANIME', format: 'TV', status: 'FINISHED', popularity: id, startDate: { year },
   studios: { nodes: [{ name: 'Studio A', isAnimationStudio: true }] }, title: { romaji: 'S' + id },
@@ -33,4 +33,19 @@ test('long lines snake: left to right, U-turn, right to left', () => {
   assert.equal(sn.per, 4);
   assert.deepEqual(sn.pts.slice(3, 6).map(p => [p.x, p.row]), [[226, 0], [226, 1], [162, 1]]);
   assert.equal(sn.pts.at(-1).row, 2);
+});
+
+test('stations get Express/Rapid/Local, and a service view recounts the line', () => {
+  const big = (id, extra) => ({ ...md(id, 2015, {}, extra), popularity: { 10: 100000, 11: 2000, 12: 40000 }[id] });
+  const [l] = franchises([
+    { status: 'COMPLETED', progress: 12, media: { ...big(10), relations: { edges: [
+      { relationType: 'SIDE_STORY', node: { id: 11, type: 'ANIME', format: 'OVA', status: 'FINISHED', popularity: 2000, startDate: { year: 2016 }, title: { romaji: 'OVA' } } },
+      { relationType: 'SIDE_STORY', node: { id: 12, type: 'ANIME', format: 'MOVIE', status: 'FINISHED', popularity: 40000, startDate: { year: 2017 }, title: { romaji: 'Movie' } } }] } } },
+  ], new Date(2026, 0, 1));
+  assert.deepEqual(l.stations.map(s => [s.id, s.svc]), [[10, 'express'], [11, 'local'], [12, 'rapid']]);
+  assert.ok(!l.complete);
+  const ex = ride(l, 'express');
+  assert.deepEqual([ex.total, ex.done, ex.complete], [1, 1, true]);
+  assert.equal(ride(l, 'rapid').total, 2);
+  assert.equal(ride(l, 'local'), l);
 });

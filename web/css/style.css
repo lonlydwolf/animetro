@@ -621,6 +621,9 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 
 /* ---------- my metro map ---------- */
 .map-sum { margin-top: 18px; }
+.map-svc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 22px; }
+.map-svc .seg { width: min(100%, 330px); }
+.map-svc .hint { margin: 0; }
 .map-tools { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; margin-top: 22px; }
 .map-tools .chips input { position: absolute; opacity: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--dim); font-size: .8rem; }

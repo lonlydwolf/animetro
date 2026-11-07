@@ -2,6 +2,7 @@
 // Grouping, layout geometry and the SVG for one line. No DOM or network, so test/check.mjs can run it.
 import { title } from './api.js';
 import { esc } from './ui.js';
+import { service } from './order.js';
 
 // Links that make two entries the same franchise line. Summaries, spin-offs and alternate versions don't.
 const LINK = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY']);
@@ -23,7 +24,7 @@ export function stationState(s) {
 
 // entries: AniList list entries with media.relations. Each entry's direct franchise neighbours that aren't
 // on your list come along as unridden stations, so a line shows the stop you haven't reached yet.
-export function franchises(entries) {
+export function franchises(entries, now = new Date()) {
   const node = new Map();
   for (const e of entries) node.set(e.media.id, { ...e.media, list: e.status, progress: e.progress });
   for (const e of entries) for (const ed of e.media.relations?.edges || []) {
@@ -46,18 +47,46 @@ export function franchises(entries) {
     const onList = stations.filter(s => s.list);
     const anchor = onList.reduce((a, b) => ((b.popularity || 0) > (a.popularity || 0) ? b : a), onList[0]);
     stations.forEach(s => (s.state = stationState(s)));
-    const done = stations.filter(s => s.state === 'done').length;
-    const out = stations.filter(s => s.state !== 'soon').length;
+    grade(stations, now);
     lines.push({
-      id: anchor.id, anchor, stations, done, total: stations.length,
+      id: anchor.id, anchor, stations, ...tally(stations),
       // the animation studio, not a producer/publisher like Aniplex that AniList also marks as main
       studio: (anchor.studios?.nodes || []).find(n => n.isAnimationStudio)?.name || null,
-      complete: done === out && out > 0,
-      riding: stations.some(s => s.state === 'here'),
     });
   }
   // biggest lines first, then name
   return lines.sort((a, b) => b.total - a.total || b.done - a.done || a.id - b.id);
+}
+
+function tally(stations) {
+  const done = stations.filter(s => s.state === 'done').length;
+  const out = stations.filter(s => s.state !== 'soon').length;
+  return { done, total: stations.length, complete: done === out && out > 0, riding: stations.some(s => s.state === 'here') };
+}
+
+// Express/Rapid/Local for each station, the same rule as the line page (order.js service()): main story is the
+// prequel/sequel chain through the line's most popular series, everything else is judged by how many of its fans watched it.
+const SERIES = new Set(['TV', 'TV_SHORT', 'ONA']), MAIN = new Set([...SERIES, 'MOVIE']);
+function grade(stations, now) {
+  const pop = arr => arr.reduce((a, b) => ((b.popularity || 0) > (a?.popularity ?? -1) ? b : a), null);
+  const anchor = pop(stations.filter(s => SERIES.has(s.format))) || pop(stations);
+  const next = new Map(stations.map(s => [s.id, []]));
+  for (const s of stations) for (const e of s.relations?.edges || []) {
+    if ((e.relationType === 'SEQUEL' || e.relationType === 'PREQUEL') && next.has(e.node.id)) { next.get(s.id).push(e.node.id); next.get(e.node.id).push(s.id); }
+  }
+  const chain = new Set([anchor.id]);
+  for (const q = [anchor.id]; q.length;) for (const id of next.get(q.pop())) if (!chain.has(id)) { chain.add(id); q.push(id); }
+  for (const s of stations) {
+    s.role = chain.has(s.id) && (MAIN.has(s.format) || !s.format) ? 'main' : 'side';
+    s.svc = service(s, anchor, now).level;
+  }
+}
+
+// One line as a train service sees it: express | rapid | local.
+export function ride(l, svc) {
+  if (svc === 'local') return l;
+  const stations = l.stations.filter(s => s.svc === 'express' || (svc === 'rapid' && s.svc === 'rapid'));
+  return { ...l, stations, ...tally(stations) };
 }
 
 // Studios with 2+ lines become districts; everything else lands in "Other lines".
@@ -92,13 +121,13 @@ export const STATE = {
   planned: 'On your Planning list', unridden: 'Not ridden yet', soon: 'Under construction',
 };
 
-export function lineSvg(l, width) {
+export function lineSvg(l, width, svc = 'rapid') {
   const { pts, d, height } = snake(l.total, width);
   const letter = (title(l.anchor).match(/[A-Za-z]/)?.[0] || 'A').toUpperCase();
   const here = l.stations.findIndex(s => s.state === 'here');
   return `
     <article class="mline" style="--c:${l.color}">
-      <a class="mline-head" href="line.html?id=${l.anchor.id}">
+      <a class="mline-head" href="line.html?id=${l.anchor.id}&stops=${svc}">
         <span class="roundel" aria-hidden="true">${letter}</span>
         <b>${esc(title(l.anchor))}</b>
         <span class="hint" style="margin:0">${l.done} of ${l.total} ridden${l.complete ? ' · end to end' : ''}</span>
