@@ -233,7 +233,11 @@ function tab(name, remember = true) {
     $(`#panel-${b.dataset.tab}`).hidden = !on;
   });
   if (remember) { const p = qs(); name === 'episodes' ? p.set('tab', name) : p.delete('tab'); history.replaceState(null, '', `?${p}`); }
-  if (name === 'episodes' && !eps.gen) loadEps(Math.floor((entry?.progress || 0) / PAGE) * PAGE); // open on the range with your next episode
+  if (name === 'episodes' && !eps.gen) {
+    // open on the range with your next episode, but never past the last range (100 of 100 watched opens 1–100)
+    const last = Math.max(0, Math.ceil(episodeTotal(media) / PAGE) - 1);
+    loadEps(Math.min(Math.floor((entry?.progress || 0) / PAGE), last) * PAGE);
+  }
 }
 
 async function loadEps(from) {
