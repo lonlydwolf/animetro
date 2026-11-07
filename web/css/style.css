@@ -793,6 +793,12 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .map-svc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 22px; }
 .map-svc .seg { width: min(100%, 330px); }
 .map-svc .hint { margin: 0; }
+.rewind { display: flex; align-items: center; gap: 12px; margin-top: 18px; max-width: 640px; }
+.rewind label { font-weight: 700; }
+.rewind input { flex: 1; accent-color: var(--platform); }
+.rewind b { font: 400 1.4rem var(--dot); color: var(--led); min-width: 3.2em; text-align: right; }
+.rw-play { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--platform); color: var(--night); font-weight: 700; cursor: pointer; }
+#rw-note { margin: 6px 0 0; }
 .map-tools { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; margin-top: 22px; }
 .map-tools .chips input { position: absolute; opacity: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--dim); font-size: .8rem; }

@@ -1,6 +1,6 @@
 import { gql, me, title, prefs } from './api.js';
 import { header, $, esc, fail, qs } from './ui.js';
-import { franchises, districts, lineSvg, marker, ride, STATE, PALETTE } from './map.js';
+import { franchises, districts, lineSvg, marker, ride, rewind, firstYear, STATE, PALETTE } from './map.js';
 
 header();
 const page = $('#page');
@@ -9,6 +9,9 @@ let lines = [], filter = 'all';
 const SERVICES = { express: 'Express', rapid: 'Rapid', local: 'Local' };
 const NOTE = { express: 'Express: only the main story.', rapid: 'Rapid: the main story plus the extras most fans watch.', local: 'Local: every stop, extras most people skip included.' };
 let svc = SERVICES[qs().get('stops')] ? qs().get('stops') : 'rapid';
+// Map Rewind: null = now, else the year the map is rewound to
+const NOW = new Date().getFullYear();
+let year = null, playing = null;
 
 async function boot() {
   const user = await me();
@@ -18,7 +21,7 @@ async function boot() {
       <a class="btn" href="pass.html">Connect AniList</a></section>`;
     return;
   }
-  const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress media{
+  const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress updatedAt completedAt{year month day} startedAt{year month day} media{
     id title{english romaji} format status episodes duration popularity isAdult startDate{year month day} studios(isMain:true){ nodes{ name isAnimationStudio } }
     relations{ edges{ relationType(version:2) node{ id type format status duration popularity isAdult title{english romaji} startDate{year month day} } } } } } } } }`, { u: user.id });
   // 18+ titles (and 18+ neighbouring stops) stay off the map unless 18+ is on
@@ -42,6 +45,13 @@ function render(user) {
         <div class="seg" role="group" aria-label="Stops">${Object.entries(SERVICES).map(([k, l]) => `<button data-svc="${k}">${l}</button>`).join('')}</div>
         <p class="hint" id="svc-note"></p>
       </div>
+      ${firstYear(lines) && firstYear(lines) < NOW ? `<div class="rewind">
+        <button class="rw-play" id="rw-play" type="button" aria-label="Play your map through the years">▶</button>
+        <label for="rw">Rewind</label>
+        <input type="range" id="rw" min="${firstYear(lines)}" max="${NOW}" step="1" value="${NOW}" aria-valuetext="Now">
+        <b id="rw-year" aria-live="polite">Now</b>
+      </div>
+      <p class="hint" id="rw-note"></p>` : ''}
       <div class="map-tools">
         <div class="chips" role="radiogroup" aria-label="Show">${[['all', 'All lines'], ['open', 'Unfinished'], ['complete', 'End to end']].map(([k, l]) =>
           `<label><input type="radio" name="f" value="${k}"${k === filter ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
@@ -50,6 +60,8 @@ function render(user) {
     </section>
     <div id="map"></div>`;
   page.querySelector('.map-tools .chips').addEventListener('change', e => { filter = e.target.value; draw(); });
+  $('#rw')?.addEventListener('input', e => { stop(); setYear(+e.target.value); });
+  $('#rw-play')?.addEventListener('click', () => (playing ? stop() : play()));
   page.querySelector('.map-svc .seg').addEventListener('click', e => {
     const b = e.target.closest('[data-svc]');
     if (!b) return;
@@ -62,10 +74,36 @@ function render(user) {
 
 const keep = l => filter === 'all' || (filter === 'complete' ? l.complete : !l.complete);
 
+function setYear(y) {
+  year = y >= NOW ? null : y;
+  const rw = $('#rw');
+  rw.value = y;
+  rw.setAttribute('aria-valuetext', year ? String(year) : 'Now');
+  $('#rw-year').textContent = year || 'Now';
+  draw();
+}
+// ▶ plays from the first year to now, a year a second
+function play() {
+  const rw = $('#rw');
+  let y = year && year < NOW ? year : +rw.min;
+  $('#rw-play').textContent = '❚❚';
+  $('#rw-play').setAttribute('aria-label', 'Pause');
+  setYear(y);
+  playing = setInterval(() => { y++; setYear(y); if (y >= NOW) stop(); }, 1000);
+}
+function stop() {
+  clearInterval(playing);
+  playing = null;
+  $('#rw-play') && ($('#rw-play').textContent = '▶', $('#rw-play').setAttribute('aria-label', 'Play your map through the years'));
+}
+
 function draw() {
   const el = $('#map');
   if (!el) return;
-  const shown = lines.map(l => ride(l, svc));
+  const past = year ? rewind(lines, year) : null;
+  const shown = (past ? past.lines : lines).map(l => ride(l, svc));
+  if ($('#rw-note')) $('#rw-note').textContent = !past ? 'Slide back to watch your network grow, from your list\'s start and finish dates.'
+    : `Your map at the end of ${year}.${past.approx ? ` ${past.approx} stop${past.approx === 1 ? ' has' : 's have'} no finish date on AniList, so ${past.approx === 1 ? 'its' : 'their'} start date (or the last time you changed the entry) stands in.` : ''}${past.siding ? ` ${past.siding} finished stop${past.siding === 1 ? '' : 's'} with no date at all wait${past.siding === 1 ? 's' : ''} in the siding until Now.` : ''}`;
   const full = shown.filter(l => l.total > 1);
   const stations = shown.reduce((a, l) => a + l.total, 0), ridden = shown.reduce((a, l) => a + l.done, 0);
   $('#sum').innerHTML = `

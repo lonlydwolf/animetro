@@ -26,7 +26,7 @@ export function stationState(s) {
 // on your list come along as unridden stations, so a line shows the stop you haven't reached yet.
 export function franchises(entries, now = new Date()) {
   const node = new Map();
-  for (const e of entries) node.set(e.media.id, { ...e.media, list: e.status, progress: e.progress });
+  for (const e of entries) node.set(e.media.id, { ...e.media, list: e.status, progress: e.progress, completedAt: e.completedAt, startedAt: e.startedAt, updatedAt: e.updatedAt });
   for (const e of entries) for (const ed of e.media.relations?.edges || []) {
     const n = ed.node;
     if (n.type === 'ANIME' && n.format !== 'MUSIC' && LINK.has(ed.relationType) && !node.has(n.id)) node.set(n.id, { ...n, list: null });
@@ -80,6 +80,43 @@ function grade(stations, now) {
     s.role = chain.has(s.id) && (MAIN.has(s.format) || !s.format) ? 'main' : 'side';
     s.svc = service(s, anchor, now).level;
   }
+}
+
+// Map Rewind: the network as it stood at the end of `year`, from your list's start and finish dates.
+// Finished then: ridden. Started but not finished then: you were on it. Not out yet: under construction.
+// Lines you hadn't boarded yet disappear. Without a finish date, the start date stands in (you can't finish
+// before you start, and most shows end soon after), then the time the entry was last changed (often much later:
+// sync tools and re-scoring touch it); both count as approximate. Finished shows with no date at all wait in the
+// siding (left out) until you're back at Now.
+const fuzzy = d => (d?.year ? d.year * 10000 + (d.month || 12) * 100 + (d.day || 31) : null);
+const stamp = ts => { if (!ts) return null; const d = new Date(ts * 1000); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
+const BOARDED = new Set(['done', 'here', 'paused', 'dropped']);
+export function rewind(lines, year) {
+  const end = year * 10000 + 1231;
+  let siding = 0, approx = 0;
+  const out = [];
+  for (const l of lines) {
+    const stations = l.stations.map(s => {
+      const finished = s.state === 'done' ? fuzzy(s.completedAt) ?? fuzzy(s.startedAt) ?? stamp(s.updatedAt) : null;
+      const began = fuzzy(s.startedAt) ?? (s.state === 'done' ? finished : stamp(s.updatedAt));
+      if (s.state === 'done' && !finished) siding++;
+      else if (s.state === 'done' && !fuzzy(s.completedAt)) approx++;
+      let state;
+      if (s.startDate?.year > year) state = 'soon';
+      else if (s.state === 'done') state = finished && finished <= end ? 'done' : began && began <= end ? 'here' : 'unridden';
+      else if (BOARDED.has(s.state)) state = began && began <= end ? s.state : 'unridden';
+      else state = 'unridden';
+      return { ...s, state };
+    });
+    if (stations.some(s => BOARDED.has(s.state))) out.push({ ...l, stations, ...tally(stations) });
+  }
+  return { lines: out, siding, approx };
+}
+
+// The first year anything on your map was finished (for the slider's start), or null.
+export function firstYear(lines) {
+  const years = lines.flatMap(l => l.stations.map(s => s.completedAt?.year || s.startedAt?.year || (s.updatedAt && new Date(s.updatedAt * 1000).getFullYear())).filter(Boolean));
+  return years.length ? Math.min(...years) : null;
 }
 
 // One line as a train service sees it: express | rapid | local.

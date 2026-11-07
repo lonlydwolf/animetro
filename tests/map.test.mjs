@@ -49,3 +49,26 @@ test('stations get Express/Rapid/Local, and a service view recounts the line', (
   assert.equal(ride(l, 'rapid').total, 2);
   assert.equal(ride(l, 'local'), l);
 });
+
+test('rewind shows the network as it stood at the end of a year', async () => {
+  const { rewind, firstYear } = await import('../web/js/map.js');
+  const st = (id, year, extra) => ({ status: 'COMPLETED', progress: 12, ...extra, media: md(id, year, extra.rel || {}) });
+  const ls = franchises([
+    st(1, 2010, { completedAt: { year: 2018, month: 3 }, startedAt: { year: 2018 }, rel: { SEQUEL: [2] } }),
+    st(2, 2012, { completedAt: { year: 2021 }, startedAt: { year: 2020 }, rel: { PREQUEL: [1], SEQUEL: [3] } }),
+    st(3, 2022, { status: 'CURRENT', progress: 3, startedAt: { year: 2024 }, rel: { PREQUEL: [2] } }),
+    st(10, 2015, { completedAt: { year: 2023 } }),
+    st(20, 2005, { completedAt: null }), // finished, but no date at all: the siding
+    st(30, 2001, { completedAt: null, updatedAt: Date.UTC(2019, 5, 1) / 1000 }), // no finish date: when it was last changed
+  ]);
+  assert.equal(firstYear(ls), 2018);
+  const at = y => rewind(ls, y);
+  assert.deepEqual(at(2017).lines.length, 0, 'nothing boarded yet');
+  assert.deepEqual(at(2020).lines.find(l => l.total === 3).stations.map(s => s.state), ['done', 'here', 'soon'], '2020: on season 2, season 3 not out');
+  assert.deepEqual(at(2024).lines.find(l => l.total === 3).stations.map(s => s.state), ['done', 'done', 'here']);
+  assert.equal(at(2024).lines.length, 3, 'the 2023 line and the 2019 estimate have joined; the undated one waits');
+  assert.equal(at(2024).siding, 1);
+  assert.equal(at(2024).approx, 1);
+  assert.equal(at(2018).lines.length, 1, 'the estimate only appears from 2019');
+  assert.equal(at(2018).siding, 1, 'the siding count doesn\'t depend on the year');
+});
