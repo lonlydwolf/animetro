@@ -11,6 +11,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Tests run on Node's built-in test runner, one file per module, plus structure checks for pages, imports and links.
 
 ### Added
+- Hovering or tapping a rider tier shows a short description and how many points it is away.
 - 21 more station stamps (37 in all), from ten thousand episodes to donghua, music videos and a favourite voice actor. Uncollected stamps show your progress; hovering or tapping a collected one shows how you earned it.
 - Your pass card (and its share image) shows your AniList profile banner, faded toward your profile color.
 - Liveries (themes): 20 of them, anime, Catppuccin and editor classics, each with a dark and a light mode. Pick one on My pass; switch light and dark from the button at the top of any page (it follows your system until you do). The Mac app's window matches.
@@ -27,6 +28,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - CI scans the whole git history for secrets, not just the commits in each push.
 
 ### Fixed
+- The next tier's name on My pass is readable in light mode.
 - Share cards no longer leave out avatars and banners that the page had already shown.
 - Status tags, summaries, map stations and page banners no longer use colors that only worked on the dark background.
 - Saving several list entries at once no longer reports success when only some were saved.
