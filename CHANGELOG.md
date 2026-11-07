@@ -28,6 +28,9 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - CI scans the whole git history for secrets, not just the commits in each push.
 
 ### Fixed
+- Episodes tab: episodes that haven't aired (including every episode of an unreleased show) can't be marked watched, so they can't complete a show early; the same limit applies to +1.
+- Episodes tab: quick clicks save one at a time, so older progress can't overwrite newer progress, and a slow range load can't replace the range you picked.
+- Episodes tab: after watching exactly 100 of 100 episodes the tab opens on 1-100 instead of an empty page.
 - Mac app: the logo no longer runs into the window's close, minimize and full-screen buttons, and the window title no longer draws over the header.
 - The next tier's name on My pass is readable in light mode.
 - Share cards no longer leave out avatars and banners that the page had already shown.
