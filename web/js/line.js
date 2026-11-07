@@ -1,6 +1,6 @@
 import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg, inApp } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw, cover, tint, safeUrl } from './ui.js';
-import { crawl, classify, storyOrder, byDate, ROLE, service } from './order.js';
+import { crawl, classify, storyOrder, byDate, ROLE, service, junctions } from './order.js';
 import { lineCard, showCard } from './share.js';
 
 header();
@@ -40,6 +40,22 @@ function render() {
   const visited = totalMin - leftMin;
   shown = { stops, hereIdx, totalEps, totalMin, pct: list.size && totalMin ? Math.round((visited / totalMin) * 100) : null };
 
+  const branches = junctions(stops, data.stops, data.transfers);
+  const branch = ({ media: t, kind, earlier }) => {
+    const e = list.get(t.id), year = t.startDate?.year;
+    const label = kind === 'alt' ? `Transfer to the ${earlier ? 'earlier' : 'other'} version${year ? ` (${year})` : ''}` : 'Branch line: spin-off';
+    return `
+      <li class="junction ${kind}" style="--b:${tint(t, 'var(--dim)')}">
+        <span class="switch" aria-hidden="true"></span>
+        <a class="branch${nsfw(t)}" href="line.html?id=${t.id}">
+          <img src="${cover(t)}" alt="" loading="lazy">
+          <span class="branch-text"><small class="branch-kind">${label}</small><b>${esc(title(t))}</b>
+            <small>${[FORMAT[t.format], year, kind === 'alt' ? 'its own continuity' : 'a side line'].filter(Boolean).join(' · ')}</small></span>
+          ${e ? `<span class="tag s-${e.status}">${STATUS[e.status]}</span>` : ''}
+        </a>
+      </li>`;
+  };
+
   $('#stops').innerHTML = stops.map((m, i) => {
     const e = list.get(m.id);
     const done = e && seen(m, list) >= epCount(m) && epCount(m) > 0;
@@ -72,7 +88,7 @@ function render() {
               : user?.canWrite ? `<button class="tag add" data-plan="${m.id}">+ Planning</button>` : ''}
           </div>
         </div>
-      </li>`;
+      </li>${(branches.get(m.id) || []).map(branch).join('')}`;
   }).join('') || '<li class="empty">No stops match. Switch to All stops.</li>';
 
   const years = stops.map(m => m.startDate.year).filter(Boolean);
@@ -102,10 +118,9 @@ function render() {
   $('#plan-all').textContent = `Add ${missing.length} unwatched to Planning`;
   $('#plan-all').onclick = () => plan(missing.map(m => m.id));
 
+  const alts = data.transfers.filter(t => t.role === 'Alternate version').length, spins = data.transfers.length - alts;
   $('#transfers').hidden = !data.transfers.length;
-  $('#transfer-list').innerHTML = [...data.transfers].sort(byDate).map(m => `
-    <li><a href="line.html?id=${m.id}"><img src="${cover(m)}" alt="" loading="lazy">
-      <span><b>${esc(title(m))}</b><small>${m.role}, ${FORMAT[m.format] || ''} ${m.startDate.year || ''}</small></span></a></li>`).join('');
+  $('#transfer-list').innerHTML = `${[alts && `${alts} other version${alts === 1 ? '' : 's'}`, spins && `${spins} spin-off${spins === 1 ? '' : 's'}`].filter(Boolean).join(' and ')} branch off this line. Look for the junctions along the track; each branch is its own line.`;
 
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.value === (b.dataset.view === 'order' ? view.order : view.service))));
   const hidden = every - stops.length;

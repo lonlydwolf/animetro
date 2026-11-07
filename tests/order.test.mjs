@@ -63,3 +63,16 @@ test('Express, Rapid and Local services judge extras by how many fans watched th
   assert.equal(service(stop('side', 20000, { startDate: { year: 2026, month: 8 } }), anchor, now).why, 'new, too early to judge');
   assert.equal(service(stop('main', 20000, { startDate: { year: 2025, month: 11 } }), anchor, now).level, 'local', 'a year out and still unwatched');
 });
+
+test('junctions hang spin-offs and other versions off the stop they branch from', async () => {
+  const { junctions } = await import('../web/js/order.js');
+  const st = (id, year, edges = []) => ({ id, startDate: { year }, relations: { edges: edges.map(([relationType, node]) => ({ relationType, node: { id: node } })) } });
+  const s1 = st(1, 2003, [['ALTERNATIVE', 9]]), s2 = st(2, 2005, [['SIDE_STORY', 3]]), s3 = st(3, 2006, [['SPIN_OFF', 8]]), s4 = st(4, 2010);
+  const remake = { ...st(9, 2009), role: 'Alternate version' }, spin = { ...st(8, 2007), role: 'Spin-off' }, loose = { ...st(7, 2008), role: 'Spin-off' };
+  const all = [s1, s2, s3, s4];
+  const j = junctions(all, all, [remake, spin, loose]);
+  assert.deepEqual(j.get(1).map(x => [x.media.id, x.kind, x.earlier]), [[9, 'alt', false]]);
+  assert.deepEqual(j.get(3).map(x => [x.media.id, x.kind]), [[8, 'spin'], [7, 'spin']], 'no link: placed by date');
+  const express = junctions([s1, s4], all, [spin]);
+  assert.deepEqual([...express.keys()], [1], 'a hidden branch stop hands its junction to the stop before it');
+});

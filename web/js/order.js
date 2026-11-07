@@ -118,6 +118,25 @@ const dateKey = m => {
 };
 export const byDate = (a, b) => dateKey(a) - dateKey(b) || a.id - b.id;
 
+// ---- Junction Box: where spin-offs and other versions branch off the line ---------------------------------
+// Each transfer hangs off the stop it's related to (from either side's relations). If that stop isn't shown
+// (Express hides it, say), it moves back to the nearest earlier shown stop; with no link at all, it goes by date.
+// Returns Map(shown stop id -> [{ media, kind: 'alt' | 'spin', earlier }]).
+export function junctions(shown, all, transfers) {
+  const out = new Map();
+  if (!shown.length) return out;
+  const linked = (a, b) => a.relations?.edges.filter(e => e.node.id === b.id).map(e => e.relationType) || [];
+  const before = key => [...shown].reverse().find(s => dateKey(s) <= key) || shown[0];
+  for (const t of [...transfers].sort(byDate)) {
+    const from = all.filter(s => linked(s, t).length || linked(t, s).length).sort(byDate)[0];
+    const types = from ? [...linked(from, t), ...linked(t, from)] : [];
+    const at = from && shown.includes(from) ? from : before(dateKey(from || t));
+    const kind = types.includes('ALTERNATIVE') || t.role === 'Alternate version' ? 'alt' : 'spin';
+    out.set(at.id, [...(out.get(at.id) || []), { media: t, kind, earlier: from ? dateKey(t) < dateKey(from) : false }]);
+  }
+  return out;
+}
+
 // Story order: respect prequel/sequel/side-story links, break ties by release date.
 export function storyOrder(stops) {
   const ids = new Set(stops.map(m => m.id));
