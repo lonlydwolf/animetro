@@ -14,23 +14,59 @@ let web = (ProcessInfo.processInfo.environment["ANIMETRO_WEB"].map { URL(fileURL
 let home = URL(string: "animetro://app/index.html")!
 
 // Serves files from Contents/Resources/web for animetro://app/<path>.
-final class Files: NSObject, WKURLSchemeHandler {
+final class Files: NSObject, WKURLSchemeHandler, URLSessionTaskDelegate {
+  var live = Set<ObjectIdentifier>() // image fetches still waiting; WebKit may cancel them first
+  lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+
   func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
     let url = task.request.url!
     let path = url.path.isEmpty || url.path == "/" ? "index.html" : String(url.path.dropFirst())
+    if path == "__image" { return image(task, url) }
     let file = web.appendingPathComponent(path).standardizedFileURL
-    guard file.path.hasPrefix(web.path + "/"), let data = try? Data(contentsOf: file) else {
+    guard file.path.hasPrefix(web.path + "/"), let data = try? Data(contentsOf: file) else { return reply(task, url, nil, nil) }
+    reply(task, url, data, UTType(filenameExtension: file.pathExtension)?.preferredMIMEType)
+  }
+  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { live.remove(ObjectIdentifier(task)) }
+
+  // Share cards draw AniList pictures on a canvas, which needs CORS, and AniList's image server answers the
+  // animetro:// origin with "Access-Control-Allow-Origin: null", so WebKit drops them. The app fetches them
+  // itself and serves them from its own origin: animetro://app/__image?u=<https://…anilist.co/…>.
+  func image(_ task: WKURLSchemeTask, _ url: URL) {
+    guard let u = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "u" })?.value,
+          let remote = URL(string: u), Files.allowed(remote) else { return reply(task, url, nil, nil) }
+    let id = ObjectIdentifier(task)
+    live.insert(id)
+    session.dataTask(with: remote) { data, response, _ in
+      DispatchQueue.main.async {
+        guard self.live.remove(id) != nil else { return } // the page went away; the task is already stopped
+        let type = response?.mimeType ?? ""
+        let ok = (response as? HTTPURLResponse)?.statusCode == 200 && type.hasPrefix("image/")
+        self.reply(task, url, ok ? data : nil, type)
+      }
+    }.resume()
+  }
+
+  static func allowed(_ url: URL) -> Bool {
+    guard url.scheme == "https", let host = url.host?.lowercased() else { return false }
+    return host == "anilist.co" || host.hasSuffix(".anilist.co")
+  }
+  // a redirect has to stay on AniList too, or the fetch stops there (and the card draws without that picture)
+  func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                  newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+    completionHandler(request.url.map(Files.allowed) == true ? request : nil)
+  }
+
+  // nil data = 404
+  func reply(_ task: WKURLSchemeTask, _ url: URL, _ data: Data?, _ type: String?) {
+    guard let data else {
       task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: [:])!)
-      task.didFinish()
-      return
+      return task.didFinish()
     }
-    let type = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
     task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
-                                    headerFields: ["Content-Type": type, "Content-Length": "\(data.count)", "Cache-Control": "no-store"])!)
+                                    headerFields: ["Content-Type": type ?? "application/octet-stream", "Content-Length": "\(data.count)", "Cache-Control": "no-store"])!)
     task.didReceive(data)
     task.didFinish()
   }
-  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 }
 
 final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -106,7 +142,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard selfTest else { return }
-    // ANIMETRO_SELFTEST=1: check the page booted, storage works and AniList answers, print JSON, quit.
+    // ANIMETRO_SELFTEST=1: check the page booted, storage works, AniList answers and card pictures draw, print JSON, quit.
     let js = """
       // wait for the page to say it loaded (or failed), up to 15 seconds
       for (let i = 0; i < 60 && !document.documentElement.dataset.ready; i++) await new Promise(r => setTimeout(r, 250));
@@ -115,8 +151,13 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
       localStorage.removeItem('animetro.selftest');
       const api = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }), signal: AbortSignal.timeout(8000) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
+      // share cards: an AniList picture through the app's image route must draw on a canvas that can still be saved
+      const card = await new Promise(r => { const i = new Image(); setTimeout(() => r(false), 8000);
+        i.onload = () => { try { const c = document.createElement('canvas'); c.getContext('2d').drawImage(i, 0, 0); c.toDataURL(); r(true); } catch { r(false); } };
+        i.onerror = () => r(false);
+        i.src = '__image?u=' + encodeURIComponent('https://s4.anilist.co/file/anilistcdn/media/anime/cover/small/bx1-GCsPm7waJ4kS.png'); });
       return JSON.stringify({ ready: document.documentElement.dataset.ready || 'timeout', header: !!document.querySelector('header.top'), page: document.querySelector('main')?.innerText.slice(0, 60),
-        stored, api, title: document.title, secure: isSecureContext, clipboard: !!navigator.clipboard,
+        stored, api, card, title: document.title, secure: isSecureContext, clipboard: !!navigator.clipboard,
         native: !!window.webkit?.messageHandlers?.animetro, web: '\(web.path)' });
       """
     webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { result in

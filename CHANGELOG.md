@@ -4,6 +4,9 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Fixed
+- Share cards in the Mac app have their pictures again (the banner, cover and avatar). AniList's image server refuses the app's `animetro://` origin, so the app now fetches card pictures itself.
+
 ## [1.0.1] - 2026-11-07
 
 ### Changed

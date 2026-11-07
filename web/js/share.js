@@ -1,6 +1,8 @@
 // Share cards: a watch-order line or your pass, drawn on a canvas as a 1200x675 image you can save,
-// copy, or share. No libraries; AniList's image server allows canvas export (it sends CORS headers).
+// copy, or share. No libraries; AniList's image server allows canvas export (it sends CORS headers;
+// the Mac app proxies pictures instead, see img below).
 import { toast, safeFilename } from './ui.js';
+import { inApp } from './api.js';
 
 const W = 1200, H = 675;
 const C = { night: '#131833', tunnel: '#1c2346', rail: '#2d3768', ink: '#eef1fa', dim: '#9aa3c7', platform: '#ffd23f' };
@@ -10,9 +12,11 @@ const BODY = '"Zen Kaku Gothic New", system-ui, sans-serif';
 const img = src => new Promise(res => {
   if (!src) return res(null);
   const i = new Image();
-  i.crossOrigin = 'anonymous';
   i.onload = () => res(i);
   i.onerror = () => res(null); // a missing picture shouldn't stop the card
+  // The Mac app fetches pictures itself and serves them from its own origin (AniList refuses CORS to animetro://).
+  if (inApp && /^https:/.test(src)) return void (i.src = `__image?u=${encodeURIComponent(src)}`);
+  i.crossOrigin = 'anonymous';
   // The page already showed this picture without CORS, and Chrome reuses that cached copy, which a canvas
   // may not read. A query string gives the card its own CORS copy (AniList's image server ignores it).
   i.src = /^https:/.test(src) ? `${src}${src.includes('?') ? '&' : '?'}card` : src;
