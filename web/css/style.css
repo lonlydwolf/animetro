@@ -720,6 +720,37 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .ride .bar { margin: 4px 0; --c: var(--c); }
 .ride-status, .ride-next { margin: 0; font-size: .84rem; color: var(--dim); }
 .ride-next b { color: var(--led); font-family: var(--dot); font-weight: 400; }
+.head-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.ride-recap { font-size: .8rem; font-weight: 700; color: var(--dim); text-decoration: none; justify-self: start; }
+.ride-recap:hover { color: var(--platform); }
+.paused { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.paused-stop { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 12px; background: var(--tunnel); text-decoration: none; box-shadow: inset 3px 0 0 var(--c); min-width: 0; }
+.paused-stop img { width: 44px; height: 62px; object-fit: cover; border-radius: 7px; flex: none; }
+.paused-stop span { display: grid; min-width: 0; }
+.paused-stop b { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paused-stop small { color: var(--dim); font-size: .78rem; }
+.paused-stop em { font-style: normal; font-size: .78rem; font-weight: 700; color: var(--platform); opacity: 0; transition: opacity .15s; }
+.paused-stop:hover em, .paused-stop:focus-visible em { opacity: 1; }
+/* Welcome Back Carriage on an anime page */
+.recap { margin-top: 32px; padding: 20px 22px; border-radius: 18px; background: var(--tunnel); box-shadow: inset 4px 0 0 var(--line); display: grid; gap: 14px; }
+.recap-head { display: flex; gap: 14px; align-items: center; }
+.recap-head h2 { font-size: 1.35rem; outline: none; }
+.recap-icon { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--line); color: var(--night); font-size: 1.3rem; font-weight: 700; }
+.recap-stops { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.recap-stops li { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: start; }
+.recap-stops img, .recap-n { width: 120px; aspect-ratio: 16/9; border-radius: 9px; object-fit: cover; }
+.recap-n { display: grid; place-items: center; background: var(--night); font: 400 1.8rem var(--display); color: var(--rail); }
+.recap-stops small { color: var(--dim); font-size: .78rem; display: block; }
+.recap-stops b { display: block; line-height: 1.3; }
+.recap-stops details { margin-top: 4px; font-size: .88rem; color: var(--dim); }
+.recap-stops summary { cursor: pointer; font-weight: 700; color: var(--line); width: max-content; }
+.recap-stops details p { margin: 6px 0 0; white-space: pre-line; line-height: 1.6; color: color-mix(in srgb, var(--ink) 85%, var(--dim)); }
+.recap-next { margin: 0; }
+.recap-cast small { color: var(--dim); font-size: .78rem; font-weight: 700; }
+.recap-cast ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.recap-cast li { display: flex; align-items: center; gap: 8px; font-size: .86rem; font-weight: 700; }
+.recap-cast img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px var(--line); }
+@media (max-width: 600px) { .recap-stops li { grid-template-columns: 90px 1fr; } .recap-stops img, .recap-n { width: 90px; } }
 .ride-body .tag.add { justify-self: start; margin-top: 4px; }
 .last-ep { color: var(--platform); }
 .ride-plus {

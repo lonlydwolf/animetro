@@ -171,7 +171,7 @@ export async function listStatus(ids) {
   if (!user || !ids.length) return out;
   const pages = Math.ceil(ids.length / 50);
   const parts = Array.from({ length: pages }, (_, i) =>
-    `p${i}: Page(page:${i + 1},perPage:50){ mediaList(userId:$u,type:ANIME,mediaId_in:$ids){ mediaId status progress score } }`);
+    `p${i}: Page(page:${i + 1},perPage:50){ mediaList(userId:$u,type:ANIME,mediaId_in:$ids){ mediaId status progress score updatedAt } }`);
   const d = await gql(`query($u:Int,$ids:[Int]){ ${parts.join(' ')} }`, { u: user.id, ids }).catch(() => ({}));
   Object.values(d).forEach(p => p?.mediaList.forEach(e => out.set(e.mediaId, e)));
   return out;
@@ -193,7 +193,7 @@ export const seenIds = async () => [...(await myList())].filter(([, s]) => s !==
 export async function saveEntries(entries) {
   if (!entries.length) return;
   const body = entries.map((e, i) =>
-    `m${i}: SaveMediaListEntry(mediaId:${+e.mediaId}${e.status ? `,status:${e.status}` : ''}${e.progress != null ? `,progress:${+e.progress}` : ''}){ mediaId status progress }`);
+    `m${i}: SaveMediaListEntry(mediaId:${+e.mediaId}${e.status ? `,status:${e.status}` : ''}${e.progress != null ? `,progress:${+e.progress}` : ''}){ mediaId status progress updatedAt }`);
   const d = await gql(`mutation{ ${body.join(' ')} }`);
   // AniList answers a batch with the entries it saved plus an error for the rest; don't call that a success
   const saved = entries.filter((_, i) => d[`m${i}`]).map(e => +e.mediaId);

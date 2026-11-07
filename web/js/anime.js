@@ -5,6 +5,7 @@ import { chime } from './chime.js';
 import { finishOdds } from './odds.js';
 import { finishes } from './fit.js';
 import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } from './episodes.js';
+import { recapMode, recapPanel } from './recap.js';
 
 header();
 const id = +qs().get('id');
@@ -76,6 +77,7 @@ async function boot() {
           <div class="actions">
             ${hasLine ? `<a class="btn" href="line.html?id=${m.id}">See watch order</a>` : ''}
             <span id="list-ctl"></span>
+            <span id="recap-offer"></span>
           </div>
         </div>
       </div>
@@ -87,6 +89,7 @@ async function boot() {
     </div>` : ''}
 
     <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+    <section class="recap" id="recap" aria-labelledby="recap-h" hidden></section>
     <div class="anime-body">
       <div>
         <section style="margin-top:0">
@@ -140,6 +143,7 @@ async function boot() {
     e.target.remove();
   });
   renderListControls();
+  recap(qs().get('recap') === '1');
   if (hasEps) tab(qs().get('tab') === 'episodes' ? 'episodes' : 'overview', false);
   odds().catch(() => {}); // a nice-to-have: stay quiet if it fails
 }
@@ -219,8 +223,26 @@ async function save(change) {
   } catch (e) { toast(e.message); }
   saving = false;
   renderListControls();
+  recap();
   if (eps.rows) drawEps();
 }
+
+// ---- Welcome Back Carriage (recap.js) ---------------------------------------
+// Paused shows (or watched ones, if you opted in) open it; otherwise a "Need a recap?" button does. ?recap=1 opens it.
+function recap(force = false) {
+  const panel = $('#recap'), offer = $('#recap-offer'), mode = recapMode(entry);
+  if (!panel || !offer) return;
+  const open = mode && (mode === 'open' || force || !panel.hidden);
+  offer.innerHTML = mode === 'offer' && !open ? '<button class="btn ghost" id="recap-btn">Need a recap?</button>' : '';
+  if (!open) { panel.hidden = true; return; }
+  recapPanel(panel, media, entry);
+  if (force) panel.scrollIntoView({ block: 'start' });
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#recap-btn')) return;
+  recap(true);
+  $('#recap-h')?.focus?.();
+});
 
 // ---- Episodes tab ------------------------------------------------------------
 const eps = { view: store.get('animetro.epView') === 'icons' ? 'icons' : 'list', from: 0, gen: 0, rows: null, kid: undefined, streams: null, total: 0, note: '' };

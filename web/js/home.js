@@ -2,11 +2,12 @@ import { gql, me, title, saveEntries, prefs } from './api.js';
 import { header, $, esc, countdown, minutes, toast, fail, cover, tint, nsfw } from './ui.js';
 import { remaining, fit, finishes } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
+import { recapOn, setRecap, ago } from './recap.js';
 
 header();
 const page = $('#page');
 const M = 'id title{english romaji} episodes duration format status averageScore isAdult coverImage{large color} nextAiringEpisode{episode airingAt}';
-let user, riding = [], planning = [], budget = 0;
+let user, riding = [], planning = [], paused = [], budget = 0;
 
 // custom lists repeat entries; 18+ titles stay hidden unless 18+ is on
 const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()].filter(e => !e.media.isAdult || prefs.adult());
@@ -18,9 +19,11 @@ async function boot() {
   const d = await gql(`query($u:Int){
     riding: MediaListCollection(userId:$u,type:ANIME,status_in:[CURRENT,REPEATING]){ lists{ entries{ status progress media{ ${M} } } } }
     planning: MediaListCollection(userId:$u,type:ANIME,status:PLANNING){ lists{ entries{ progress media{ ${M} } } } }
+    paused: MediaListCollection(userId:$u,type:ANIME,status:PAUSED,sort:UPDATED_TIME_DESC){ lists{ entries{ progress updatedAt media{ ${M} } } } }
   }`, { u: user.id }, { fresh: true });
   riding = entries(d.riding);
   planning = entries(d.planning);
+  paused = entries(d.paused).sort((a, b) => b.updatedAt - a.updatedAt);
   render();
 }
 
@@ -46,13 +49,24 @@ function render() {
     </section>
 
     ${ready.length ? `<section>
-      <div class="section-head"><h2>Ready to watch</h2><button class="tag sound" id="sound" aria-pressed="${soundOn()}">${soundOn() ? 'Chimes on' : 'Chimes off'}</button></div>
+      <div class="section-head"><h2>Ready to watch</h2><span class="head-pills">
+        <button class="tag sound" id="recaps" aria-pressed="${recapOn()}" title="Recap where you stopped on shows you're watching, not just paused ones">${recapOn() ? 'Recaps on' : 'Recaps off'}</button>
+        <button class="tag sound" id="sound" aria-pressed="${soundOn()}">${soundOn() ? 'Chimes on' : 'Chimes off'}</button></span></div>
       <div class="rides">${ready.map(ride).join('')}</div></section>` : ''}
 
     ${waiting.length ? `<section>
       <div class="section-head"><h2>Waiting at the platform</h2><a href="departures.html">Full board</a></div>
       <p class="hint">You're caught up. These are the next episodes on their way.</p>
       <div class="rides">${waiting.map(ride).join('')}</div></section>` : ''}
+
+    ${paused.length ? `<section>
+      <div class="section-head"><h2>Paused at the platform</h2><span class="hint" style="margin:0">${paused.length} waiting for you</span></div>
+      <div class="paused">${paused.slice(0, 8).map(e => `
+        <a class="paused-stop${nsfw(e.media)}" href="anime.html?id=${e.media.id}&recap=1" style="--c:${tint(e.media, 'var(--platform)')}">
+          <img src="${cover(e.media)}" alt="" loading="lazy">
+          <span><b>${esc(title(e.media))}</b><small>Stopped at ep ${e.progress}${e.updatedAt ? ` · ${ago(e.updatedAt)}` : ''}</small><em>Reboard ↩</em></span>
+        </a>`).join('')}</div>
+      ${paused.length > 8 ? `<p class="hint">${paused.length - 8} more on your Paused list.</p>` : ''}</section>` : ''}
 
     ${!riding.length ? `<section><p class="empty">Start something from <a href="foryou.html">For you</a> or <a href="search.html">Discover</a>, and it will show up here.</p></section>` : ''}
 
@@ -66,6 +80,12 @@ function render() {
       <div id="fit"></div>
     </section>`;
 
+  $('#recaps')?.addEventListener('click', () => {
+    setRecap(!recapOn());
+    render();
+    toast(recapOn() ? 'Recaps on: shows you\'re watching get a recap of where you stopped.' : 'Recaps off: only paused shows get one.');
+    $('#recaps')?.focus();
+  });
   $('#sound')?.addEventListener('click', e => {
     setSound(!soundOn());
     e.target.textContent = soundOn() ? 'Chimes on' : 'Chimes off';
@@ -94,6 +114,7 @@ function ride({ e, r }) {
         <p class="ride-status">Ep ${e.progress}${total ? ` / ${total}` : ''} · ${status}</p>
         ${next ? `<p class="ride-next">Ep ${next.episode} airs in <b data-at="${next.airingAt}">${countdown(next.airingAt - Date.now() / 1000)}</b></p>` : ''}
         ${!r.left && !r.airing && user.canWrite && e.status !== 'COMPLETED' ? '<button class="tag add" data-complete>Mark completed</button>' : ''}
+        ${recapOn() && e.progress > 0 ? `<a class="ride-recap" href="anime.html?id=${m.id}&recap=1">Recap ↩</a>` : ''}
       </div>
       ${canPlus ? `<button class="ride-plus" data-plus aria-label="Watched episode ${e.progress + 1}">+1</button>` : ''}
     </div>`;
