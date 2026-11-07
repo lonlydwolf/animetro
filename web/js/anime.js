@@ -144,7 +144,7 @@ async function boot() {
   });
   renderListControls();
   recap(qs().get('recap') === '1');
-  if (hasEps) tab(qs().get('tab') === 'episodes' ? 'episodes' : 'overview', false);
+  if (hasEps) tab(qs().get('tab') === 'episodes' && qs().get('recap') !== '1' ? 'episodes' : 'overview', false); // a recap link opens Overview
   odds().catch(() => {}); // a nice-to-have: stay quiet if it fails
 }
 
@@ -240,6 +240,7 @@ function recap(force = false) {
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('#recap-btn')) return;
+  if ($('#tab-overview')) tab('overview');
   recap(true);
   $('#recap-h')?.focus?.();
 });
