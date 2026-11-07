@@ -1,6 +1,6 @@
 {
   "name": "animetro",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Anime watch orders as metro lines, with live AniList data. A macOS app and a plain web app.",
   "license": "MIT",
