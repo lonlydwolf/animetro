@@ -12,17 +12,18 @@ You need Node 20 or later. For the Mac app, Xcode or the Command Line Tools (`xc
 git clone https://github.com/lonlydwolf/animetro.git
 cd animetro
 npm install        # dev tools only (ESLint); the app itself has no dependencies
-npm start          # serves web/ at http://localhost:5180
+npm start          # serves web/ at http://localhost:5180, to this computer only
 ```
 
-Mac app: `./macos/dev.sh` runs it against the files in `web/`, so edits only need ⌘R in the app. Right-click › Inspect Element opens Safari's Web Inspector.
+Mac app: `./macos/dev.sh` runs it against the files in `web/`, so edits only need ⌘R in the app. Right-click › Inspect Element opens Safari's Web Inspector (only under `dev.sh`; release builds leave it off).
 
 ## Before you open a pull request
 
 ```sh
 npm run lint
 npm test
-./macos/build.sh && ./macos/selftest.sh   # only if you touched the Mac app
+./macos/test.sh                           # only if you touched the Mac app: Swift unit tests, no internet needed
+./macos/build.sh && ./macos/selftest.sh   # ...and launch the built app (needs the network: it asks AniList)
 ```
 
 CI runs the same checks, plus a secret scan.
