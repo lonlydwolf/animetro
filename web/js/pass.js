@@ -235,7 +235,8 @@ function connect() {
   $('#uname').onsubmit = async e => {
     e.preventDefault();
     useUsername(e.target.name.value);
-    const u = await me();
+    let u;
+    try { u = await me(); } catch (err) { logout(); return toast(err.message); }
     if (!u) { logout(); return toast(`No AniList user called "${e.target.name.value}".`); }
     location.reload();
   };
