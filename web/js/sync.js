@@ -5,7 +5,7 @@ import { syncOn, setSyncOn, simklClient, setSimklClient, simklConnected, simklDi
 header();
 const page = $('#page');
 const AL_LABEL = { watching: 'Watching', plantowatch: 'Planning', completed: 'Completed', hold: 'Paused', dropped: 'Dropped' };
-let login; // AbortController while waiting for a Simkl code
+let login; // AbortController for the Simkl login in progress, from asking for a code until the token is saved
 
 function boot() {
   if (!syncOn()) {
@@ -69,7 +69,7 @@ function simkl() {
       <p class="hint">Client ID saved. Connect your Simkl account: you'll approve a short code on simkl.com.</p>
       <div class="row-btns"><button class="btn" id="connect">Connect Simkl</button><button class="btn ghost" id="reset">Change client ID</button></div>
       <div id="code"></div>`;
-    $('#reset').onclick = () => { setSimklClient(''); simkl(); };
+    $('#reset').onclick = () => { login?.abort(); setSimklClient(''); simkl(); };
     $('#connect').onclick = connect;
     return;
   }
@@ -85,9 +85,10 @@ function simkl() {
 async function connect() {
   const box = $('#code'), btn = $('#connect');
   btn.disabled = true;
+  login?.abort();
+  const ctl = login = new AbortController(); // made before the first request, so Off cancels even that one
   try {
-    const code = await startLogin();
-    login = new AbortController();
+    const code = await startLogin(ctl.signal);
     box.innerHTML = `
       <div class="pin">
         <p class="hint" style="margin:0">Approve this code on Simkl:</p>
@@ -95,13 +96,16 @@ async function connect() {
         <div class="row-btns"><a class="btn" href="${esc(code.verification_uri_complete || code.verification_uri)}" target="_blank" rel="noopener">Open Simkl</a><button class="btn ghost" id="cancel">Cancel</button></div>
         <p class="hint" style="margin:0">Waiting for you to approve… The code works for ${Math.round((code.expires_in || 900) / 60)} minutes.</p>
       </div>`;
-    $('#cancel').onclick = () => login.abort();
-    await waitForLogin(code, login.signal);
+    $('#cancel').onclick = () => ctl.abort();
+    await waitForLogin(code, ctl.signal);
     toast('Simkl connected.');
     simkl();
   } catch (e) {
+    if (ctl.signal.aborted && !box.isConnected) return; // turned off: the page already moved on
     box.innerHTML = `<p class="hint">${esc(e.message)}</p>`;
     btn.disabled = false;
+  } finally {
+    if (login === ctl) login = null;
   }
 }
 

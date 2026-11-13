@@ -7,7 +7,14 @@ const APP = 'app-name=animetro&app-version=1.0';
 const KEY = { on: 'animetro.sync', client: 'animetro.simkl.client', token: 'animetro.simkl.token' };
 const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cancelled = () => new Error('Cancelled.');
+// A wait that a cancel cuts short, so turning sync off stops a login poll right away.
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) return reject(cancelled());
+  const id = setTimeout(() => { signal?.removeEventListener('abort', stop); resolve(); }, ms);
+  const stop = () => { clearTimeout(id); reject(cancelled()); };
+  signal?.addEventListener('abort', stop, { once: true });
+});
 
 // ---- switch, client ID, login ---------------------------------------------
 export const syncOn = () => get(KEY.on) === '1';
@@ -23,30 +30,39 @@ export const simklDisconnect = () => put(KEY.token, null);
 // Simkl's refresh token doesn't rotate, so a renewal may answer without one: then the one we have stays.
 const keep = t => put(KEY.token, JSON.stringify({ access: t.access_token, refresh: t.refresh_token || tokens()?.refresh, expires: Date.now() + t.expires_in * 1000 }));
 
-async function oauth(path, fields) {
+async function oauth(path, fields, signal) {
   const res = await fetch(API + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: simklClient(), ...fields }),
-  }).catch(() => { throw new Error("Couldn't reach Simkl. Check your connection."); });
-  return { ok: res.ok, status: res.status, json: await res.json().catch(() => ({})) };
+    signal,
+  }).catch(() => { throw signal?.aborted ? cancelled() : new Error("Couldn't reach Simkl. Check your connection."); });
+  const json = await res.json().catch(() => ({}));
+  if (signal?.aborted) throw cancelled(); // a fetch can finish after the cancel; drop what it brought
+  return { ok: res.ok, status: res.status, json };
 }
 
+// A login that started under one client ID is only worth saving while sync is still on with that same ID.
+// Storage is shared, so this also notices sync being turned off or the ID changed in another tab.
+const wanted = client => syncOn() && simklClient() === client;
+
 // Device login: Simkl gives a short code, you approve it on simkl.com, we poll until it lands.
-export async function startLogin() {
-  const r = await oauth('/oauth2/device', { scope: 'media:read media:write' });
+export async function startLogin(signal) {
+  const r = await oauth('/oauth2/device', { scope: 'media:read media:write' }, signal);
   if (r.ok) return r.json; // { device_code, user_code, verification_uri, verification_uri_complete, interval, expires_in }
   throw new Error(r.json.error === 'invalid_client'
     ? "Simkl doesn't accept that client ID. Check it, and that the app was created on simkl.com/settings/developer as a new (AUTH V2) app."
     : r.json.error_description || `Simkl answered ${r.status}.`);
 }
 export async function waitForLogin(code, signal) {
+  const client = simklClient();
   let wait = (code.interval || 5) * 1000;
   const end = Date.now() + (code.expires_in || 900) * 1000;
   while (Date.now() < end) {
-    await sleep(wait);
-    if (signal?.aborted) throw new Error('Cancelled.');
-    const r = await oauth('/oauth2/token', { grant_type: 'urn:ietf:params:oauth:grant-type:device_code', device_code: code.device_code });
+    await sleep(wait, signal);
+    if (!wanted(client)) throw cancelled();
+    const r = await oauth('/oauth2/token', { grant_type: 'urn:ietf:params:oauth:grant-type:device_code', device_code: code.device_code }, signal);
+    if (signal?.aborted || !wanted(client)) throw cancelled(); // checked right before saving, after the last await
     if (r.ok) return keep(r.json);
     const err = r.json.error;
     if (err === 'slow_down') wait += 5000;
@@ -62,7 +78,14 @@ async function access(force = false) {
   const t = tokens();
   if (!t) throw new Error('Connect Simkl first.');
   if (!force && Date.now() < t.expires - 864e5) return t.access;
+  const client = simklClient();
   const r = await oauth('/oauth2/token', { grant_type: 'refresh_token', refresh_token: t.refresh }); // throws, connected, if unreachable
+  // Checked after the request, right before saving: never bring back a login that was dropped meanwhile,
+  // and if another tab renewed it meanwhile, theirs is the live one (ours may now be the rejected old one).
+  // That shows in the access token: the refresh token doesn't rotate, so it looks the same after their renewal.
+  const now = tokens();
+  if (!wanted(client) || !now) throw new Error('Simkl was disconnected.');
+  if (now.access !== t.access) return now.access;
   if (r.ok) { keep(r.json); return r.json.access_token; }
   // Only a rejected refresh token means the login is gone. A busy or broken Simkl (5xx, 429) keeps it.
   if (r.status === 400 || r.status === 401) { simklDisconnect(); throw new Error('Your Simkl login ran out. Connect again.'); }
