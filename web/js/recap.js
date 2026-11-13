@@ -33,8 +33,8 @@ export function ago(ts, now = Date.now()) {
 }
 
 // Kitsu episodes for the last stops and the next one, by number. Empty if Kitsu doesn't have the show.
-async function stopsFromKitsu(media, progress) {
-  const kid = await kitsuId(media);
+async function stopsFromKitsu(media, progress, findKitsu) {
+  const kid = await findKitsu(media);
   if (!kid) return new Map();
   const from = Math.max(0, progress - 2);
   const { eps } = await kitsuRange(kid, from, 3);
@@ -44,7 +44,8 @@ async function stopsFromKitsu(media, progress) {
 const epTitle = e => e?.titles?.en_us || e?.titles?.en || e?.canonicalTitle || '';
 
 // Fills `el` with the panel for `entry` on `media` (its total and next airing episode come from AniList).
-export async function recapPanel(el, media, entry) {
+// Pass a remembering `kitsuId` to skip the Kitsu id lookup on every redraw.
+export async function recapPanel(el, media, entry, { kitsuId: findKitsu = kitsuId } = {}) {
   const p = entry.progress, total = media.episodes, gen = (el.recapGen = (el.recapGen || 0) + 1); // a newer call wins
   const when = entry.status === 'PAUSED' ? `paused ${ago(entry.updatedAt)}` : `last logged ${ago(entry.updatedAt)}`;
   el.hidden = false;
@@ -54,7 +55,7 @@ export async function recapPanel(el, media, entry) {
       <p class="hint" style="margin:0">You stopped after episode ${p}${total ? ` of ${total}` : ''}${entry.updatedAt ? `, ${when}` : ''}.</p></div></div>
     <p class="hint" id="recap-wait">Fetching your last stops…</p>`;
   let k = new Map();
-  try { k = await stopsFromKitsu(media, p); } catch { /* Kitsu down: titles and summaries just stay empty */ }
+  try { k = await stopsFromKitsu(media, p, findKitsu); } catch { /* Kitsu down: titles and summaries just stay empty */ }
   if (el.recapGen !== gen) return;
   const nextN = p + 1, aired = media.status === 'NOT_YET_RELEASED' ? 0 : media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : Infinity;
   const next = !total || nextN <= total ? nextN : null;

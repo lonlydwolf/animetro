@@ -7,9 +7,12 @@ import { finishes } from './fit.js';
 import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } from './episodes.js';
 import { recapMode, recapPanel } from './recap.js';
 import { youtubeId } from './trailer.js';
+import { memo } from './memo.js';
 
 header();
 const id = +qs().get('id');
+// Kitsu's id for the show, looked up once per page and shared by the Episodes tab and the recap (a failed lookup retries)
+const findKitsu = memo(kitsuId, m => m.id);
 const cap = s => (s ? s[0] + s.slice(1).toLowerCase().replace(/_/g, ' ') : '');
 const date = d => (d?.year ? new Date(d.year, (d.month || 1) - 1, d.day || 1).toLocaleDateString(undefined, { year: 'numeric', month: d.month ? 'short' : undefined, day: d.day ? 'numeric' : undefined }) : '');
 
@@ -238,7 +241,7 @@ function recap(force = false) {
   const open = mode && (mode === 'open' || force || !panel.hidden);
   offer.innerHTML = mode === 'offer' && !open ? '<button class="btn ghost" id="recap-btn">Need a recap?</button>' : '';
   if (!open) { panel.hidden = true; return; }
-  recapPanel(panel, media, entry);
+  recapPanel(panel, media, entry, { kitsuId: findKitsu });
   if (force) panel.scrollIntoView({ block: 'start' });
 }
 document.addEventListener('click', e => {
@@ -275,7 +278,7 @@ async function loadEps(from) {
   eps.streams ??= gql('query($id:Int){Media(id:$id){streamingEpisodes{title thumbnail url site}}}', { id }).then(d => d.Media.streamingEpisodes).catch(() => []);
   let kitsu = [], count = 0, note;
   try {
-    if (eps.kid === undefined) eps.kid = await kitsuId(media);
+    if (eps.kid === undefined) eps.kid = await findKitsu(media);
     if (eps.kid) ({ eps: kitsu, count } = await kitsuRange(eps.kid, from, episodeTotal(media) - from));
     note = eps.kid ? 'Titles, pictures and summaries from <a href="https://kitsu.app" target="_blank" rel="noopener">Kitsu</a>.' : "Kitsu doesn't have this show, so only numbers and dates are shown.";
   } catch { note = "Couldn't reach Kitsu for titles and pictures. Try again later."; }
