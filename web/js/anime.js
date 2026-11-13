@@ -6,6 +6,7 @@ import { finishOdds } from './odds.js';
 import { finishes } from './fit.js';
 import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } from './episodes.js';
 import { recapMode, recapPanel } from './recap.js';
+import { youtubeId } from './trailer.js';
 
 header();
 const id = +qs().get('id');
@@ -56,6 +57,7 @@ async function boot() {
   const streams = m.externalLinks.filter(l => l.type === 'STREAMING');
   const recs = m.recommendations.nodes.map(n => n.mediaRecommendation).filter(r => r && (!r.isAdult || prefs.adult()));
   const epTotal = episodeTotal(m), hasEps = epTotal > 1 || (epTotal === 1 && m.format !== 'MOVIE');
+  const yt = youtubeId(m.trailer);
   const hasLine = m.relations.edges.some(e => ['PREQUEL', 'SEQUEL', 'SIDE_STORY', 'PARENT', 'SPIN_OFF', 'ALTERNATIVE', 'SUMMARY'].includes(e.relationType));
 
   $('#page').innerHTML = `
@@ -99,10 +101,10 @@ async function boot() {
         ${vibes.length ? `<section><h2>Vibe check</h2><p class="hint">How strongly AniList users say each tag applies.${spoilers ? ` <button class="spoiler-btn" id="spoil">Show ${spoilers} spoiler tag${spoilers > 1 ? 's' : ''}</button>` : ''}</p>
           <div class="vibes" id="vibes">${vibes.map(vibe).join('')}</div></section>` : ''}
 
-        ${m.trailer?.site === 'youtube' ? `<section><h2>Trailer</h2><p></p>
+        ${yt ? `<section><h2>Trailer</h2><p></p>
           ${inApp // YouTube embeds refuse to play inside apps, so the app shows the thumbnail and opens YouTube
-            ? `<a class="trailer trailer-link" href="https://www.youtube.com/watch?v=${esc(m.trailer.id)}" target="_blank" rel="noopener" style="background-image:url(https://i.ytimg.com/vi/${esc(m.trailer.id)}/hqdefault.jpg)"><span>▶ Watch on YouTube</span></a>`
-            : `<iframe class="trailer" src="https://www.youtube-nocookie.com/embed/${esc(m.trailer.id)}" title="Trailer" loading="lazy" allowfullscreen></iframe>`}</section>` : ''}
+            ? `<a class="trailer trailer-link" href="https://www.youtube.com/watch?v=${yt}" target="_blank" rel="noopener" style="background-image:url(https://i.ytimg.com/vi/${yt}/hqdefault.jpg)"><span>▶ Watch on YouTube</span></a>`
+            : `<iframe class="trailer" src="https://www.youtube-nocookie.com/embed/${yt}" title="Trailer" loading="lazy" allowfullscreen></iframe>`}</section>` : ''}
 
         ${m.characters.edges.length ? `<section><h2>Cast</h2><p class="hint">Characters and their Japanese voice actors.</p>
           <div class="cast">${m.characters.edges.map(e => `
