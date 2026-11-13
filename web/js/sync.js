@@ -117,11 +117,11 @@ async function anilistList(user) {
 
 async function check() {
   const box = $('#preview'), btn = $('#check');
-  const user = await me();
-  if (!user) { box.innerHTML = '<p class="hint">Connect AniList on <a href="pass.html">My pass</a> first.</p>'; return; }
   btn.disabled = true;
-  box.innerHTML = '<p class="hint">Reading both lists…</p>';
   try {
+    const user = await me();
+    if (!user) { box.innerHTML = '<p class="hint">Connect AniList on <a href="pass.html">My pass</a> first.</p>'; return; }
+    box.innerHTML = '<p class="hint">Reading both lists…</p>';
     const [entries, library] = await Promise.all([anilistList(user), simklLibrary()]);
     const p = plan(entries, library);
     const writes = p.history.length + p.list.length + p.ratings.length;
@@ -141,8 +141,7 @@ async function check() {
       <div class="row-btns"><button class="btn" id="send">Send to Simkl</button><span class="hint" style="margin:0">${batches} request${batches === 1 ? '' : 's'}, about ${Math.max(1, Math.ceil(batches * 1.1))}s: Simkl allows one write a second.</span></div>
       <div id="progress"></div>`;
     $('#send').onclick = () => go(p, entries);
-  } catch (e) { fail(box, e); }
-  btn.disabled = false;
+  } catch (e) { fail(box, e); } finally { btn.disabled = false; } // every exit, including "nothing to send", re-enables Check
 }
 
 function row(c) {
