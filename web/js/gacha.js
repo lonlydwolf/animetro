@@ -120,6 +120,7 @@ const SAID = {
   added: 'Added to Planning',
   listed: "It's already on your list, so nothing was changed.",
   unknown: "Couldn't confirm it isn't on your list, so nothing was changed. Check again in a moment.",
+  'rate-limited': 'AniList is busy right now, so nothing was saved. Try again in a moment.',
 };
 $('#pulls').addEventListener('click', async e => {
   const r = e.target.closest('[data-recheck]'), b = e.target.closest('[data-plan]');
