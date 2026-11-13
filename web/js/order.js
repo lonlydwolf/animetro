@@ -3,7 +3,8 @@
 const FOLLOW = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SUMMARY', 'COMPILATION']);
 // ...and ones we show as "transfers" but don't walk (walking them pulls in whole other franchises).
 const LEAF = new Set(['SPIN_OFF', 'ALTERNATIVE']);
-const MAX_STOPS = 120;
+export const MAX_STOPS = 120;
+const BATCH = 50; // ids per fetchMany call
 const MAIN_FORMATS = new Set(['TV', 'TV_SHORT', 'ONA', 'MOVIE']);
 
 export const ROLE = {
@@ -35,9 +36,12 @@ export async function crawl(rootId, fetchMany, onProgress = () => {}) {
   };
   let capped = false;
   for (;;) {
-    const todo = [...want.keys()].filter(id => !media.has(id)).slice(0, 50);
-    if (!todo.length) break;
-    if (media.size >= MAX_STOPS) { capped = true; break; }
+    const pending = [...want.keys()].filter(id => !media.has(id));
+    if (!pending.length) break;
+    // never fetch past the cap: each batch is limited to the room that's left
+    const room = MAX_STOPS - media.size;
+    if (room <= 0) { capped = true; break; }
+    const todo = pending.slice(0, Math.min(BATCH, room));
     const found = await fetchMany(todo);
     todo.forEach(id => media.set(id, null));
     found.forEach(m => media.set(m.id, m));

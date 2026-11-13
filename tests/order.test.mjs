@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { crawl, classify, storyOrder, byDate, service } from '../web/js/order.js';
+import { crawl, classify, storyOrder, byDate, service, MAX_STOPS } from '../web/js/order.js';
 
 const m = (id, format, year, rel = {}, popularity = 100) => ({
   id, format, popularity, isAdult: false, startDate: { year, month: 1, day: 1 },
@@ -84,4 +84,38 @@ test('in story order, a hidden stop hands its junction to the stop before it on 
   const story = [B, C, A]; // a prequel released last comes first in story order
   const j = junctions([B, A], story, [{ ...st(9, 2010), role: 'Spin-off' }]);
   assert.deepEqual([...j.keys()], [2], 'C is hidden; the stop before it on screen is B');
+});
+
+// A root with `kids - 1` followed children (so the map holds exactly `kids` nodes once they're all fetched),
+// each child with `grand` followed grandchildren of its own: the crawl reaches the cap with that many nodes in hand.
+async function fan(kids, grand) {
+  const node = (id, rel) => ({ id, format: 'TV', popularity: 1, isAdult: false, startDate: { year: 2000 }, relations: { edges: rel.map(n => ({ relationType: 'SEQUEL', node: { id: n, type: 'ANIME' } })) } });
+  const children = Array.from({ length: kids - 1 }, (_, i) => 2 + i);
+  const graph = new Map([[1, node(1, children)]]);
+  children.forEach((c, i) => graph.set(c, node(c, Array.from({ length: grand }, (_, j) => 10000 + i * grand + j))));
+  const batches = [];
+  const out = await crawl(1, async ids => { batches.push(ids.length); return ids.map(id => graph.get(id) || node(id, [])); });
+  return { ...out, batches, fetched: batches.reduce((a, b) => a + b, 0) };
+}
+
+test('crawl never fetches past the stop cap, whatever size it reaches the last batch at', async () => {
+  assert.equal(MAX_STOPS, 120);
+  for (const kids of [100, 101, 119, 120]) {
+    const r = await fan(kids, 3); // plenty more to walk than there's room for
+    assert.equal(r.media.size, MAX_STOPS, `${kids} nodes in hand: stops exactly at the cap`);
+    assert.equal(r.fetched, MAX_STOPS, `${kids}: no id fetched beyond the cap`);
+    assert.ok(r.batches.every(n => n > 0 && n <= 50), `${kids}: batches stay within 50 (${r.batches})`);
+    assert.ok(r.capped, `${kids}: franchise left unwalked, so capped`);
+  }
+});
+
+test('crawl is not capped when the franchise fits exactly, or just under', async () => {
+  for (const kids of [100, 119, 120]) {
+    const r = await fan(kids, 0);
+    assert.equal(r.media.size, kids);
+    assert.ok(!r.capped, `${kids}: everything fetched, nothing cut off`);
+  }
+  const over = await fan(121, 0);
+  assert.equal(over.media.size, MAX_STOPS);
+  assert.ok(over.capped, 'one stop over the cap is cut off and flagged');
 });
