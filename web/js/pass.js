@@ -1,5 +1,5 @@
-import { gql, me, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
-import { header, $, esc, toast, fail, cover, tint, safeUrl, nsfw, safeColor } from './ui.js';
+import { gql, me, UnknownUser, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
+import { header, $, esc, toast, cover, tint, safeUrl, nsfw, safeColor } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
@@ -36,7 +36,14 @@ const PERSONA = {
 };
 
 async function boot() {
-  const user = await me();
+  let user;
+  try { user = await me(); } catch (err) {
+    if (!(err instanceof UnknownUser)) throw err; // offline / AniList down: stuck() below
+    // the saved username is gone (renamed or deleted): forget it and offer a fresh start
+    logout();
+    toast(`${err.message} Connect again below.`);
+    return connect();
+  }
   if (!user) return connect();
   const d = await gql(`query($u:Int){
     User(id:$u){ createdAt statistics{anime{ count episodesWatched minutesWatched meanScore statuses{ status count }
@@ -261,4 +268,13 @@ function livery() {
   page.append(el);
   picker(el);
 }
-boot().catch(e => fail(page, e)).finally(livery);
+// My pass is where you fix your connection, so an error here never takes away the way out:
+// Try again, or Disconnect and start over.
+function stuck(err) {
+  page.innerHTML = `<section class="fy-hero"><h1>My pass</h1>
+    <p class="hint" style="font-size:1rem;max-width:60ch" role="alert">${esc(err.message || err)}</p>
+    <p style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="retry">Try again</button><button class="btn ghost" id="logout">Disconnect</button></p></section>`;
+  $('#retry').onclick = () => location.reload();
+  $('#logout').onclick = () => { logout(); location.reload(); };
+}
+boot().catch(stuck).finally(livery);
