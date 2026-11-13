@@ -524,9 +524,10 @@ button.tag.add:disabled:hover { background: transparent; color: var(--platform);
 .knob:disabled { cursor: progress; }
 .slot { position: absolute; bottom: 14px; right: 18px; width: 54px; height: 36px; background: #0005; border-radius: 10px 10px 4px 4px; }
 .machine-label { position: absolute; top: 14px; left: 18px; font: 400 .9rem var(--display); color: #fff; }
-.gacha-controls { display: grid; gap: 14px; margin-top: 26px; }
-.gacha-controls label { display: grid; gap: 6px; color: var(--dim); font-weight: 700; font-size: .88rem; }
-.gacha-controls select { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--rail); background: var(--tunnel); }
+/* minmax(0, …) and min-width: 0 let the menus shrink below their longest option on narrow phones */
+.gacha-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 26px; }
+.gacha-controls label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; color: var(--dim); font-weight: 700; font-size: .88rem; }
+.gacha-controls select { min-width: 0; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--rail); background: var(--tunnel); }
 .pulls { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 20px; }
 .pull { perspective: 900px; }
 .pull-inner { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.3, 1.4, .5, 1); transform: rotateY(180deg); }
@@ -703,7 +704,8 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 
 /* ---------- backup sync ---------- */
 .transfers { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 18px; margin-top: 36px; align-items: start; }
-.transfer { background: var(--tunnel); border-radius: 18px; padding: 22px; display: grid; gap: 12px; }
+/* minmax(0, 1fr): as on the pass page, WebKit would otherwise size the card to its client-ID form's input and button side by side */
+.transfer { background: var(--tunnel); border-radius: 18px; padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .transfer.off { opacity: .65; }
 .transfer h3 { display: flex; align-items: center; gap: 10px; }
 .transfer .hint { margin: 0; }
