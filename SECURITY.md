@@ -9,7 +9,7 @@ Please report security issues privately through GitHub: **Security › Report a 
 Animetro has no server and no analytics. Everything is fetched live from AniList (and Simkl, if you turn backup sync on), straight from your browser or the Mac app.
 
 On your device only:
-- your AniList login token or username, and the AniList client ID you entered
+- your AniList login token or username, and in a browser the AniList client ID you entered (the Mac app uses Animetro's own)
 - your Simkl client ID and login, only if you turned on backup sync
 - your settings: 18+, blur, chimes, recaps, livery, light or dark, episode view
 - for the current tab only: your profile and AniList answers from the last 5 minutes
@@ -18,12 +18,13 @@ In a browser this is the site's local storage; the Mac app keeps it in `~/Librar
 
 **Disconnect** on My pass clears your login, but only on this device: Animetro doesn't cancel the token with AniList, so it stays valid until it expires (AniList tokens last a year). To cancel it, revoke Animetro in AniList under **Settings › Apps**. Turning backup sync off likewise only forgets Simkl here.
 
-Nothing in this repository contains anyone's keys or tokens. CI scans the whole git history for leaked secrets on every push to `main` and every pull request.
+Nothing in this repository contains anyone's keys or tokens. The one ID it does contain is the Mac app's AniList client ID (56211), which is public by design: AniList's implicit-grant login, which Animetro uses, has no client secret, and none exists in this repository or the app. CI scans the whole git history for leaked secrets on every push to `main` and every pull request.
 
 ## How your login is protected
 
 - Your AniList token is only sent to AniList, and only with requests about you (your lists, stats and saves). Public lookups go without it.
 - A login is only accepted if Animetro started it (OAuth `state`), so a crafted link can't sign you in as someone else.
+- Logins use AniList's implicit grant (`response_type=token`), so no client secret is involved. In the Mac app AniList sends the token to `animetro://auth`, the address Animetro's client is registered with, which the app's window catches and hands straight to My pass; the token is then removed from the page's address.
 - Each tab's copy of your profile is tied to the login it was fetched for. If another tab logs out or switches account, the tab reloads, and a change isn't saved under an account the page wasn't showing.
 - Status and episode changes, + Planning and +1 are checked against AniList at the moment you click and saved only if the entry is still what the page showed, so a page left open can't undo changes made elsewhere. Each is sent once, never retried on its own.
 - Values from AniList are escaped and validated before they go into the page.

@@ -30,7 +30,7 @@ CI runs the same checks, plus a secret scan.
 
 - Keep the stack plain: HTML, CSS and ES modules in `web/`, no framework and no build step. A runtime dependency needs a strong reason.
 - Logic without DOM or network access lives in its own module (`order.js`, `score.js`, `fit.js`, …) and gets a test in `tests/`.
-- Never commit API keys, client IDs or tokens. Users paste their own; they stay in their browser.
+- Never commit API keys, client secrets or tokens. Client IDs stay out too, with one exception: the Mac app's AniList client ID (`56211` in `web/js/api.js`), which the owner registered for the redirect `animetro://auth`. It's public by design: Animetro uses AniList's implicit grant, which has no client secret, so none is ever used or committed. Everyone else (the web version, other clients) pastes their own ID, which stays in their browser.
 
 ## Commits
 
