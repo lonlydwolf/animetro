@@ -1,7 +1,8 @@
-import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg, inApp } from './api.js';
+import { gql, title, listStatus, me, rankSearch, prefs, adultArg, inApp } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, listNote, nsfw, cover, tint, safeUrl } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE, service, junctions } from './order.js';
 import { lineCard, showCard } from './share.js';
+import { addToPlanning, planReport } from './plan.js';
 
 header();
 
@@ -131,14 +132,21 @@ function render() {
   $('#capped').hidden = !data.capped;
 }
 
+// The line is drawn from your list as it was when the page loaded, so what it offers to add is only a hint:
+// addToPlanning() checks those shows again (fresh, as the signed-in account) and adds only the ones still not
+// on your list, in one attempt. The line is then redrawn from what that check found.
+let planning = false;
 async function plan(ids) {
-  let saved = ids, problem;
-  try { await saveEntries(ids.map(id => ({ mediaId: id, status: 'PLANNING' }))); }
-  catch (e) { saved = e.saved || []; problem = e.message; }
-  // only mark what AniList actually saved
-  saved.forEach(id => data.list.set(id, { mediaId: id, status: 'PLANNING', progress: 0 }));
-  if (saved.length) render();
-  toast(problem || (ids.length === 1 ? 'Added to Planning' : `Added ${ids.length} titles to Planning`));
+  if (planning || !ids.length) return;
+  planning = true;
+  document.querySelectorAll('[data-plan], #plan-all').forEach(b => (b.disabled = true));
+  const r = await addToPlanning(ids);
+  r.saved.forEach((e, id) => data.list.set(id, e));
+  r.changed.forEach((e, id) => (e ? data.list.set(id, e) : data.list.delete(id)));
+  planning = false;
+  render();
+  $('#plan-all').disabled = false;
+  toast(planReport(r, ids.length));
 }
 
 function shareCard() {
