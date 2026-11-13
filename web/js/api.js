@@ -95,7 +95,8 @@ function track(res) {
 
 // ---- short-lived cache ------------------------------------------------------
 // Same question within 5 minutes in this tab = same answer, no request. Lives in sessionStorage,
-// so it's gone when the tab closes. Any list change (mutation) wipes it.
+// so it's gone when the tab closes. A list change (mutation) wipes only the answers it can have changed:
+// those are stored under PREFIX + 'p.' (see LIST_BOUND), so public lookups like crawls and media pages survive.
 const TTL = 5 * 60_000, PREFIX = 'animetro.q.';
 const digest = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = (h * 33) ^ str.charCodeAt(i); return (h >>> 0).toString(36); };
 const cache = {
@@ -110,19 +111,24 @@ const cache = {
     if (v.length > 1_000_000) return; // huge lists aren't worth the space
     try { sessionStorage.setItem(PREFIX + k, v); } catch { cache.clear(); try { sessionStorage.setItem(PREFIX + k, v); } catch {} }
   },
-  clear() { try { for (let i = sessionStorage.length; i--;) { const k = sessionStorage.key(i); if (k.startsWith(PREFIX)) sessionStorage.removeItem(k); } } catch {} },
+  clear(prefix = PREFIX) { try { for (let i = sessionStorage.length; i--;) { const k = sessionStorage.key(i); if (k.startsWith(prefix)) sessionStorage.removeItem(k); } } catch {} },
 };
 
 // Your token only goes with questions about you (your lists, stats, saving). Public lookups go out
 // anonymous: a logged-in request makes AniList apply your account's "18+ content" setting and hide
 // adult titles, and Animetro's own 18+ switch should decide that instead.
-const PERSONAL = /\b(Viewer|mutation|mediaList|MediaListCollection|User)\b/;
+// mediaListEntry and isFavourite are Media fields AniList answers for whoever is asking, so they count too.
+const PERSONAL = /\b(Viewer|mutation|mediaList|mediaListEntry|MediaList|MediaListCollection|User|isFavourite)\b/;
+// Answers a list change can make stale: anything personal, plus public views of someone's list or
+// activity (by userId), which change when you save even though they need no token.
+const LIST_BOUND = /\b(userId|userName|activities|ListActivity)\b/;
 
 // fresh: don't answer from the cache. remember: false = don't put the answer in it either.
 export async function gql(query, variables = {}, { fresh = false, remember = true, tries = RETRIES } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
-  const key = digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
+  const listBound = personal || LIST_BOUND.test(query);
+  const key = (listBound ? 'p.' : '') + digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
   const hit = !mutation && !fresh && cache.get(key);
   if (hit) return hit;
   if (mutation && meFor !== undefined && meFor !== account()) { // see the storage listener below
@@ -152,7 +158,7 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
   const empty = !json.data || Object.values(json.data).every(v => v == null);
   if (json.errors && empty) throw Object.assign(new Error(json.errors[0].message), { status: json.errors[0].status });
   if (!json.data) throw new Error('AniList returned an empty response.');
-  if (mutation) cache.clear(); else if (!json.errors && remember) cache.set(key, json.data);
+  if (mutation) cache.clear(PREFIX + 'p.'); else if (!json.errors && remember) cache.set(key, json.data);
   return json.data;
 }
 
