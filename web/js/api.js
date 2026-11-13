@@ -90,7 +90,8 @@ const cache = {
 // adult titles, and Animetro's own 18+ switch should decide that instead.
 const PERSONAL = /\b(Viewer|mutation|mediaList|MediaListCollection|User)\b/;
 
-export async function gql(query, variables = {}, { fresh = false, tries = 3 } = {}) {
+// fresh: don't answer from the cache. remember: false = don't put the answer in it either.
+export async function gql(query, variables = {}, { fresh = false, remember = true, tries = 3 } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
   const key = digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
@@ -111,7 +112,7 @@ export async function gql(query, variables = {}, { fresh = false, tries = 3 } = 
     const wait = Math.min(+res.headers.get('Retry-After') || 15, 65);
     dispatchEvent(new CustomEvent('ratelimit', { detail: wait }));
     await sleep(wait * 1000);
-    return gql(query, variables, { fresh, tries: tries - 1 });
+    return gql(query, variables, { fresh, remember, tries: tries - 1 });
   }
   const json = await res.json().catch(() => ({}));
   if (json.errors?.some(e => e.status === 401 || /invalid token/i.test(e.message))) {
@@ -119,30 +120,51 @@ export async function gql(query, variables = {}, { fresh = false, tries = 3 } = 
     location.reload();
   }
   const empty = !json.data || Object.values(json.data).every(v => v == null);
-  if (json.errors && empty) throw new Error(json.errors[0].message);
+  if (json.errors && empty) throw Object.assign(new Error(json.errors[0].message), { status: json.errors[0].status });
   if (!json.data) throw new Error('AniList returned an empty response.');
-  if (mutation) cache.clear(); else if (!json.errors) cache.set(key, json.data);
+  if (mutation) cache.clear(); else if (!json.errors && remember) cache.set(key, json.data);
   return json.data;
 }
 
 // ---- who's riding -------------------------------------------------------
 const ME_FIELDS = 'id name avatar{large} bannerImage siteUrl options{profileColor}';
+// The saved username has no AniList account (AniList answered 404). Its own type so a page can tell
+// "that user doesn't exist" apart from "couldn't reach AniList"; the message already says which name.
+export class UnknownUser extends Error {
+  constructor(name) { super(`No AniList user called "${name}".`); this.name = 'UnknownUser'; this.username = name; }
+}
+
 let mePromise;
+// null only means nobody is logged in (no token, no username). Anything else that stops us knowing who you
+// are (offline, AniList down, an unknown username) rejects, so pages show the error rather than the
+// "Connect AniList" screen. A rejection isn't remembered: the next call asks again.
 export function me() {
-  return (mePromise ??= (async () => {
-    const cached = store.get(KEY.me, sessionStorage);
-    if (cached) return JSON.parse(cached);
-    let user = null;
-    if (token()) {
-      user = (await gql(`{Viewer{${ME_FIELDS}}}`)).Viewer;
-      if (user) user.canWrite = true;
-    } else if (store.get(KEY.user)) {
-      user = (await gql(`query($n:String){User(name:$n){${ME_FIELDS}}}`, { n: store.get(KEY.user) }).catch(() => null))?.User;
-      if (user) user.canWrite = false;
-    }
-    if (user) store.set(KEY.me, JSON.stringify(user), sessionStorage);
-    return user;
-  })().catch(() => null));
+  if (!mePromise) {
+    const p = (mePromise = whoAmI());
+    p.catch(() => { if (mePromise === p) mePromise = null; });
+  }
+  return mePromise;
+}
+async function whoAmI() {
+  const cached = store.get(KEY.me, sessionStorage);
+  if (cached) return JSON.parse(cached);
+  // Identity has its own cache (KEY.me, written only on success). Through the query cache, an empty answer
+  // would be replayed for 5 minutes and a retry could never recover.
+  const ask = { fresh: true, remember: false };
+  let user = null;
+  if (token()) {
+    user = (await gql(`{Viewer{${ME_FIELDS}}}`, {}, ask)).Viewer;
+    if (!user) throw new Error("AniList didn't send your profile. Try again.");
+    user.canWrite = true;
+  } else if (store.get(KEY.user)) {
+    const name = store.get(KEY.user);
+    const notFound = e => { throw e.status === 404 ? new UnknownUser(name) : e; };
+    user = (await gql(`query($n:String){User(name:$n){${ME_FIELDS}}}`, { n: name }, ask).catch(notFound)).User;
+    if (!user) throw new UnknownUser(name);
+    user.canWrite = false;
+  }
+  if (user) store.set(KEY.me, JSON.stringify(user), sessionStorage);
+  return user;
 }
 
 export function useUsername(name) {
@@ -165,8 +187,9 @@ export function logout() {
 }
 
 // Map of mediaId -> {status, progress, score} for the current rider, in one request.
+// Best effort, like the lookup itself: if who you are can't be read, cards just show no list badges.
 export async function listStatus(ids) {
-  const user = await me();
+  const user = await me().catch(() => null);
   const out = new Map();
   if (!user || !ids.length) return out;
   const pages = Math.ceil(ids.length / 50);
