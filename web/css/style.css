@@ -171,6 +171,9 @@ section { margin-top: 56px; }
 .tag.soon { background: #ffd23f22; color: var(--platform); }
 .tag.add { background: transparent; box-shadow: inset 0 0 0 1px var(--platform); color: var(--platform); cursor: pointer; }
 .tag.add:hover { background: var(--platform); color: var(--night); }
+/* a list change waiting its turn or being checked (plan.js saves one at a time) */
+button.tag:disabled, #status:disabled { opacity: .5; cursor: progress; }
+button.tag.add:disabled:hover { background: transparent; color: var(--platform); }
 .s-COMPLETED { background: #00a65033 !important; color: color-mix(in srgb, #00a650 55%, var(--ink)) !important; }
 .s-CURRENT, .s-REPEATING { background: #00a7db33 !important; color: color-mix(in srgb, #00a7db 55%, var(--ink)) !important; }
 .s-PLANNING { background: #9b7cb633 !important; color: color-mix(in srgb, #9b7cb6 55%, var(--ink)) !important; }

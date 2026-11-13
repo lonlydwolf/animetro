@@ -1,15 +1,16 @@
-import { gql, me, token, saveEntries, RateLimited } from './api.js';
+import { gql, me, token, identity, saveEntries, reserve, RateLimited } from './api.js';
 import { esc, STATUS } from './ui.js';
 
 // The rider's entries for `ids` as Map(mediaId -> entry), or null when AniList couldn't be asked. Unlike
 // listStatus() a failed lookup is never an empty Map: "couldn't check" must not read as "not on your list".
-// `viewer` also asks AniList whose token this is and gives null unless it's `user`; `fresh` skips the cache.
-export async function listedStatus(user, ids, query = gql, { viewer = false, fresh = false } = {}) {
+// `viewer` also asks AniList whose token this is and gives null unless it's `user`; `fresh` skips the cache;
+// `reserved`: its room was booked with reserve() (see saveChecked).
+export async function listedStatus(user, ids, query = gql, { viewer = false, fresh = false, reserved = false } = {}) {
   if (!user || !ids.length) return new Map();
   const parts = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) =>
     `p${i}: Page(page:${i + 1},perPage:50){ mediaList(userId:$u,type:ANIME,mediaId_in:$ids){ mediaId status progress updatedAt } }`);
   try {
-    const d = await query(`query($u:Int,$ids:[Int]){ ${viewer ? 'Viewer{ id } ' : ''}${parts.join(' ')} }`, { u: user.id, ids }, { fresh });
+    const d = await query(`query($u:Int,$ids:[Int]){ ${viewer ? 'Viewer{ id } ' : ''}${parts.join(' ')} }`, { u: user.id, ids }, { fresh, ...(reserved ? { reserved } : {}) });
     if (viewer && d?.Viewer?.id !== user.id) return null; // the token belongs to someone else now
     const pages = parts.map((_, i) => d?.[`p${i}`]?.mediaList);
     if (!pages.every(Array.isArray)) return null; // a page missing from a partial answer counts as unknown
@@ -71,24 +72,43 @@ export const unchanged = (seen, now) => (seen ? !!now && now.status === seen.sta
 //   rateLimited: AniList refused the save for now; nothing was saved,
 //   readOnly: nobody who can write is signed in; stale: current() said no. Nothing was saved for either.
 // }
-export async function saveChecked(items, { rider = me, token: tok = token, lookup = listedStatus, save = saveEntries, current = () => true } = {}) {
-  const out = { saved: new Map(), changed: new Map(), unknown: [], rateLimited: false, readOnly: false, stale: false, error: null };
+//
+// One at a time, page-wide: every check-and-save waits its turn in one queue, and books room for its two requests
+// (reserve(2)) before it starts, so clicks on different shows can't burst past AniList's rate limit together. Any
+// waiting happens there, before the fresh check, never between the check and the save.
+// The click belongs to the account that was signed in when it was made: identity() is read synchronously as it's made
+// ({ riderId, account }, from the identity the page rendered with; none yet: unknown, nothing saved) and the work is
+// dropped (accountChanged, nothing saved) if either field differs after any wait (its turn in the queue, the
+// rate-limit room, the check) - the last of those checks is right before the save.
+let turn = Promise.resolve();
+export function saveChecked(items, deps = {}) {
+  const as = (deps.identity || identity)();
+  const run = turn.then(() => checkAndSave(items, deps, as));
+  turn = run.catch(() => {});
+  return run;
+}
+async function checkAndSave(items, { identity: who = identity, lookup = listedStatus, save = saveEntries, current = () => true, room = reserve } = {}, as) {
+  const out = { saved: new Map(), changed: new Map(), unknown: [], rateLimited: false, readOnly: false, stale: false, accountChanged: false, error: null };
   const ids = items.map(x => x.id);
   if (!items.length) return out;
-  const t = tok();
-  const person = await Promise.resolve().then(rider).catch(() => undefined); // undefined: can't tell who's signed in
-  if (person === undefined) { out.unknown = ids; return out; }
-  if (!person?.canWrite) { out.readOnly = true; return out; }
-  const mine = await lookup(person, ids, undefined, { viewer: true, fresh: true });
+  if (!as) { out.unknown = ids; return out; } // can't tell who clicked
+  if (!as.canWrite) { out.readOnly = true; return out; }
+  const moved = () => { const now = who(); return now?.riderId !== as.riderId || now?.account !== as.account; };
+  const drop = () => { out.accountChanged = true; out.unknown = ids; return out; };
+  if (moved()) return drop(); // switched while this waited its turn
+  await room(2); // the check and its save
+  if (moved()) return drop(); // switched while waiting for rate-limit room
+  const mine = await lookup({ id: as.riderId, canWrite: true }, ids, undefined, { viewer: true, fresh: true, reserved: true });
   if (!current()) { out.stale = true; return out; }
-  // nothing is awaited between this check and the save call, so the save goes out with the token just checked
-  if (tok() !== t || !mine) { out.unknown = ids; return out; }
+  // nothing is awaited between this check and the save call, so the save goes out as the account just checked
+  if (moved()) return drop();
+  if (!mine) { out.unknown = ids; return out; }
   const go = [];
   for (const x of items) if (unchanged(x.seen, mine.get(x.id))) go.push(x); else out.changed.set(x.id, mine.get(x.id) ?? null);
   if (!go.length) return out;
   try {
     // one attempt, now: a resend after a rate-limit wait would act on a check that may no longer hold
-    const d = await save(go.map(x => ({ mediaId: x.id, ...x.change })), { retry: false });
+    const d = await save(go.map(x => ({ mediaId: x.id, ...x.change })), { retry: false, reserved: true });
     go.forEach((x, i) => out.saved.set(x.id, d?.[`m${i}`]?.status ? d[`m${i}`] : { mediaId: x.id, ...x.change }));
   } catch (err) {
     if (err instanceof RateLimited) { out.rateLimited = true; return out; }
@@ -106,7 +126,9 @@ export const addToPlanning = (ids, deps) => saveChecked(ids.map(id => ({ id, see
 export const describeEntry = e => (e ? `${STATUS[e.status] || 'on your list'}, ep ${e.progress ?? 0}` : 'not on your list');
 
 // Why a single checked save didn't happen (when it wasn't saved and the entry hadn't changed).
+export const ACCOUNT_CHANGED = 'You signed in as a different AniList account since that click, so nothing was saved.';
 export function notSaved(r) {
+  if (r.accountChanged) return ACCOUNT_CHANGED;
   if (r.rateLimited) return 'AniList is busy right now, so nothing was saved. Try again in a moment.';
   if (r.error) return r.error.message;
   if (r.readOnly) return 'Log in with AniList on My pass to change your list.';
@@ -115,6 +137,7 @@ export function notSaved(r) {
 
 // What happened, in a sentence: "Added 3 to Planning; 2 were already on your list."
 export function planReport(r, asked) {
+  if (r.accountChanged) return ACCOUNT_CHANGED;
   if (r.rateLimited) return 'AniList is busy right now, so nothing was added. Try again in a moment.';
   if (r.readOnly) return 'Log in with AniList on My pass to add shows to your list.';
   const added = r.saved.size, listed = r.changed.size, missed = r.unknown.length;
@@ -133,7 +156,7 @@ export function planReport(r, asked) {
 // a newer lookup or a save has overtaken is dropped. An answer that comes back after the token changed counts
 // as unknown.
 //   rider(): the signed-in rider ({ id, canWrite }); token(): the current token; lookup/save: listedStatus/saveEntries.
-export function planBoard({ rider = me, token: tok = token, lookup = listedStatus, save = saveEntries } = {}) {
+export function planBoard({ rider = me, token: tok = token, identity: ident = identity, lookup = listedStatus, save = saveEntries } = {}) {
   const info = new Map(), gens = new Map(), busy = new Set();
   const next = id => { const g = (gens.get(id) || 0) + 1; gens.set(id, g); return g; };
   const state = id => slotState(info.get(id)?.entry, info.get(id)?.known ?? false);
@@ -170,10 +193,11 @@ export function planBoard({ rider = me, token: tok = token, lookup = listedStatu
       try {
         const g = next(id);
         const r = await saveChecked([{ id, seen: undefined, change: { status: 'PLANNING' } }],
-          { rider, token: tok, lookup, save, current: () => gens.get(id) === g });
+          { identity: ident, lookup, save, current: () => gens.get(id) === g });
         if (r.stale || r.readOnly) return state(id);
         if (r.changed.has(id)) { info.set(id, { entry: r.changed.get(id), known: true }); return state(id); } // never overwrite it
-        if (r.unknown.length && !r.error) { record(id, null, false); return 'unknown'; } // couldn't check, or the account changed
+        if (r.accountChanged) { record(id, null, false); return 'account-changed'; }
+        if (r.unknown.length && !r.error) { record(id, null, false); return 'unknown'; } // couldn't check
         next(id); // a save was attempted: anything asked before it is out of date now
         // refused: nothing was done, so + Planning again; the next click runs the whole check again
         if (r.rateLimited) { info.set(id, { known: true }); return 'rate-limited'; }

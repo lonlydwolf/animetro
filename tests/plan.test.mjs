@@ -1,8 +1,8 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planSlot, listedStatus, slotState, planBoard } from '../web/js/plan.js';
-import { listStatus, logout, me } from '../web/js/api.js';
+import { planSlot, listedStatus, slotState, planBoard, saveChecked } from '../web/js/plan.js';
+import { listStatus, logout, me, identity } from '../web/js/api.js';
 
 const USER = { id: 42, canWrite: true };
 
@@ -74,7 +74,7 @@ function signIn(fetch) {
 async function withAniList(answer, fn) {
   const real = globalThis.fetch;
   signIn(async () => json(answer()));
-  try { return await fn(); } finally { globalThis.fetch = real; logout(); }
+  try { await me(); return await fn(); } finally { globalThis.fetch = real; logout(); } // a page has its rider before it offers saves
 }
 const partial = entry => () => ({ data: { p0: { mediaList: [entry] } }, errors: [{ message: 'Internal Server Error', path: ['p0', 'mediaList', 0, 'status'] }] });
 
@@ -99,6 +99,7 @@ function rig({ rider = USER } = {}) {
   const board = planBoard({
     rider: async () => rider,
     token: () => tok,
+    identity: () => ({ riderId: rider?.id ?? null, canWrite: !!rider?.canWrite, account: tok }),
     lookup: (user, ids, _q, opts = {}) => { const d = deferred(); asks.push({ user, ids, opts, ...d }); return d.promise; },
     save: async entries => (saves.push(entries), { m0: { mediaId: entries[0].mediaId, status: entries[0].status } }),
   });
@@ -137,7 +138,7 @@ test('race 2: + Planning from a stale card checks again and never overwrites an 
     await answerAdd(r, 1, listed(1, status)); // the fresh lookup says otherwise
     assert.equal(await add, status ? 'listed' : 'unknown', String(status));
     assert.deepEqual(r.saves, [], String(status));
-    assert.deepEqual(r.asks[1].opts, { viewer: true, fresh: true });
+    assert.deepEqual(r.asks[1].opts, { viewer: true, fresh: true, reserved: true });
     assert.doesNotMatch(r.board.slot(1, true), /data-plan/);
   }
 });
@@ -158,8 +159,9 @@ test('race 3: the account changing during the + Planning check sends nothing', a
   const add = r.board.add(99); await tick();
   r.switchTo('account-B');
   r.asks[0].resolve(new Map());
-  assert.equal(await add, 'unknown');
+  assert.equal(await add, 'account-changed');
   assert.deepEqual(r.saves, []);
+  assert.match(r.board.slot(99, true), /data-recheck="99"/);
 });
 
 test('+ Planning saves once, only when confirmed absent, and uses the saved answer', async () => {
@@ -188,7 +190,7 @@ test('+ Planning: a failed lookup or save leaves the show unknown; read-only rid
   const r = rig();
   const a = r.board.add(7); await answerAdd(r, 0, null);
   assert.equal(await a, 'unknown');
-  const boom = planBoard({ rider: async () => USER, token: () => 't', lookup: async () => new Map(), save: async () => { throw new Error("AniList didn't save that."); } });
+  const boom = planBoard({ rider: async () => USER, token: () => 't', identity: () => ({ riderId: 42, canWrite: true, account: 't' }), lookup: async () => new Map(), save: async () => { throw new Error("AniList didn't save that."); } });
   await assert.rejects(boom.add(8), /didn't save/);
   assert.equal(boom.state(8), 'unknown');
   const ro = rig({ rider: { id: 1, canWrite: false } });
@@ -199,7 +201,7 @@ test('+ Planning: a failed lookup or save leaves the show unknown; read-only rid
 test("who you are can't be read (me() rejects): unknown everywhere, no lookup, no save", async () => {
   const asks = [], saves = [];
   const board = planBoard({
-    rider: async () => { throw new Error("Couldn't reach AniList."); }, token: () => 'account-A',
+    rider: async () => { throw new Error("Couldn't reach AniList."); }, token: () => 'account-A', identity: () => undefined,
     lookup: async (...a) => (asks.push(a), new Map()), save: async e => (saves.push(e), { m0: { status: 'PLANNING' } }),
   });
   await board.learn([1, 2]);
@@ -211,7 +213,7 @@ test("who you are can't be read (me() rejects): unknown everywhere, no lookup, n
 });
 
 test('nobody signed in: no lookup is needed and nothing can be added', async () => {
-  const board = planBoard({ rider: async () => null, token: () => null, save: async () => assert.fail('must not save') });
+  const board = planBoard({ rider: async () => null, token: () => null, identity: () => ({ riderId: null, canWrite: false, account: '' }), save: async () => assert.fail('must not save') });
   await board.learn([1]);
   assert.equal(board.slot(1, false), '');
   assert.equal(await board.add(1), 'absent');
@@ -226,7 +228,7 @@ async function realAniList(fn) {
     const d = deferred(); held.push({ body, auth: opts.headers.Authorization, ...d }); return d.promise;
   });
   const reply = (i, data, errors) => held[i].resolve(json({ data, errors }));
-  try { return await fn({ held, writes, reply, board: planBoard() }); }
+  try { await me(); return await fn({ held, writes, reply, board: planBoard() }); } // a page has its rider before it offers saves
   finally { globalThis.fetch = real; logout(); }
 }
 
@@ -252,21 +254,18 @@ test('real gql, race 2: a stale + Planning card checks fresh and finds Completed
   assert.deepEqual(writes, []);
 }));
 
-test('real gql, race 3: switched account (cached profile still says 42): Viewer mismatch, nothing sent', () => realAniList(async ({ held, writes, reply, board }) => {
+test('real gql, race 3: switched account (cached profile still says 42): refused before anything is sent', () => realAniList(async ({ held, writes, board }) => {
   assert.equal((await me()).id, 42); // this page knows the rider as 42 (account-A)
   localStorage.setItem('animetro.token', 'account-B'); // another tab signed in as someone else; no storage event here
-  const add = board.add(23); await tick(); await tick();
-  assert.equal(held[0].auth, 'Bearer account-B');
-  reply(0, { Viewer: { id: 77 }, p0: { mediaList: [] } }); // B's token, A's (empty) list
-  assert.equal(await add, 'unknown');
-  assert.deepEqual(writes, []);
+  assert.equal(await board.add(23), 'unknown'); // the identity this page rendered with isn't the signed-in account
+  assert.deepEqual([held.length, writes.length], [0, 0]);
 }));
 
 test('real gql, race 3: account switch while the + Planning check is in flight: nothing sent', () => realAniList(async ({ writes, reply, board }) => {
   const add = board.add(24); await tick(); await tick();
   localStorage.setItem('animetro.token', 'account-B');
   reply(0, { Viewer: { id: 42 }, p0: { mediaList: [] } });
-  assert.equal(await add, 'unknown');
+  assert.equal(await add, 'account-changed');
   assert.deepEqual(writes, []);
 }));
 
@@ -341,8 +340,33 @@ test('Check list resolves once AniList answers cleanly', async () => {
     assert.equal(await board.recheck(11), 'listed');
     assert.equal(board.slot(11, true), '<span class="tag s-DROPPED">Dropped</span>');
   });
-  const board = planBoard({ rider: async () => USER, token: () => 't', lookup: async () => new Map() });
+  const board = planBoard({ rider: async () => USER, token: () => 't', identity: () => ({ riderId: 42, canWrite: true, account: 't' }), lookup: async () => new Map() });
   assert.equal(await board.recheck(7), 'absent');
   assert.equal(board.slot(7, true), '<button class="tag add" data-plan="7">+ Planning</button>');
   assert.equal(board.slot(7, false), '');
 });
+
+test('real api: a click waiting for rate-limit room, then logout and login as B: nothing is checked or saved as B', () => realAniList(async ({ held, writes }) => {
+  assert.equal((await me()).id, 42); // signed in as A (account-A)
+  let release;
+  const queued = saveChecked([{ id: 999, change: { status: 'PLANNING' } }], { room: () => new Promise(r => (release = r)) });
+  await tick(); await tick();
+  logout(); localStorage.setItem('animetro.token', 'account-B');
+  release();
+  const r = await queued;
+  assert.equal(r.accountChanged, true);
+  assert.deepEqual([held.length, writes.length], [0, 0]);
+}));
+
+test('identity(): read synchronously; only once me() has resolved, and only while that account is still signed in', () => realAniList(async () => {
+  const id = identity();
+  assert.deepEqual({ ...id, account: typeof id.account }, { riderId: 42, canWrite: true, account: 'string' });
+  assert.ok(Object.isFrozen(id));
+  assert.ok(!id.account.includes('account-A'), 'a fingerprint, not the token');
+  localStorage.setItem('animetro.token', 'account-B');
+  assert.equal(identity(), undefined); // the rendered identity belongs to A
+  localStorage.setItem('animetro.token', 'account-A');
+  assert.equal(identity(), id);
+  logout();
+  assert.equal(identity(), undefined);
+}));
