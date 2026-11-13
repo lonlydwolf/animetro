@@ -36,12 +36,19 @@ export const prefs = {
 };
 // GraphQL isAdult argument: false hides 18+, undefined (omitted) allows everything.
 export const adultArg = () => (prefs.adult() ? undefined : false);
-// One AniList client for the whole app. Register it once at anilist.co/settings/developer with the redirect
-// URL <site>pass.html and fill both in: every visitor on that site then gets a one-click "Log in with AniList".
-// Anywhere else (like localhost) riders can still paste their own client ID.
-const APP = { clientId: '', site: '' }; // e.g. { clientId: '12345', site: 'https://you.github.io/animetro/' }
-export const builtInLogin = () => !!APP.clientId && location.href.startsWith(APP.site);
-export const clientId = () => (builtInLogin() ? APP.clientId : store.get(KEY.client) || '');
+// Who AniList is asked to log you in for. AniList sends the token only to the redirect URL a client registered,
+// so a client works on exactly one address.
+// - The Mac app: Animetro's own client, registered with the redirect animetro://auth, which the app's window
+//   catches (macos/Animetro.swift) and hands to pass.html. One click, nothing to set up. A client ID is public by
+//   design: this is AniList's implicit grant, where no client secret exists, and none is used or kept anywhere.
+// - A website: register a client at anilist.co/settings/developer with the redirect URL <site>pass.html and fill
+//   in WEB below; every visitor on that site then gets one click too.
+// - Anywhere else (like localhost): riders paste a client ID of their own, registered for that address.
+const MAC_CLIENT = '56211';
+const WEB = { clientId: '', site: '' }; // e.g. { clientId: '12345', site: 'https://you.github.io/animetro/' }
+const builtInClient = () => (inApp ? MAC_CLIENT : WEB.clientId && location.href.startsWith(WEB.site) ? WEB.clientId : '');
+export const builtInLogin = () => !!builtInClient();
+export const clientId = () => builtInClient() || store.get(KEY.client) || '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---- rate limit ----------------------------------------------------------

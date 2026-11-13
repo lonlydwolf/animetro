@@ -32,3 +32,19 @@ test('a login link the app did not start is ignored', async () => {
   assert.equal(wrong.loginRejected, true);
   assert.equal(localStorage.getItem('animetro.token'), null);
 });
+
+test("on the web there is no built-in client: the Mac app's client is never offered there", async () => {
+  const api = await load('', 6);
+  assert.equal(api.inApp, false);
+  assert.equal(api.builtInLogin(), false, 'riders bring their own client');
+  localStorage.removeItem('animetro.client');
+  assert.equal(api.clientId(), '');
+  assert.equal(new URL(api.loginUrl()).searchParams.get('client_id'), '');
+  localStorage.setItem('animetro.client', '123');
+  const url = new URL(api.loginUrl());
+  assert.equal(url.searchParams.get('client_id'), '123');
+  assert.equal(url.searchParams.get('response_type'), 'token');
+  assert.match(url.searchParams.get('state'), /^[0-9a-f]{32}$/);
+  assert.doesNotMatch(url.href, /56211/);
+  localStorage.removeItem('animetro.client');
+});

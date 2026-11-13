@@ -111,11 +111,14 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   let selfTest = ProcessInfo.processInfo.environment["ANIMETRO_SELFTEST"] != nil
   var savingScores = 0 // scores Rapid rating is still sending to AniList; the page reports it, leaving drops them
   var crashes: [Date] = [] // when the page's process last died, to tell a one-off from a page that keeps dying
+  var selfTestReport: [String: Any]? // the self-test's page checks, kept while its login check runs on My pass
 
   func applicationDidFinishLaunching(_ note: Notification) {
     let config = WKWebViewConfiguration()
     config.setURLSchemeHandler(Files(), forURLScheme: "animetro")
-    config.websiteDataStore = .default() // keeps your login and settings between launches
+    // keeps your login and settings between launches; the self-test gets a blank one, so it starts logged out and
+    // never touches yours
+    config.websiteDataStore = selfTest ? .nonPersistent() : .default()
     config.userContentController.add(self, name: "animetro") // the page asks for native help here (saving images)
     view = WKWebView(frame: .zero, configuration: config)
     view.navigationDelegate = self
@@ -180,6 +183,10 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
       webView.load(URLRequest(url: page.url!))
       return decisionHandler(.cancel)
     }
+    if selfTest, selfTestReport != nil, url.host?.lowercased() == "anilist.co", url.path == "/api/v2/oauth/authorize" {
+      finishSelfTest(login: url) // the self-test's Log in click: note where it was going, never open AniList's page
+      return decisionHandler(.cancel)
+    }
     let mainFrame = action.targetFrame?.isMainFrame ?? true
     let scheme = url.scheme?.lowercased()
     let aniList = scheme == "https" && url.host?.lowercased() == "anilist.co" // the login page, and only over HTTPS
@@ -239,6 +246,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard selfTest else { return }
+    if selfTestReport != nil { return clickLogIn(webView) }
     // ANIMETRO_SELFTEST=1: run the checks below, print one line of JSON, quit. macos/selftest.sh fails unless every
     // check passes: ready ("ok": the home page booted), header (the shared header rendered), stored (localStorage
     // works), api (AniList answers a GraphQL query), card (an AniList picture through the image route draws on a canvas
@@ -269,13 +277,55 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
       """
     webView.callAsyncJavaScript(js, arguments: ["web": web.path], in: nil, in: .page) { result in
       switch result {
-      case .success(let value): print(value as? String ?? String(describing: value))
+      case .success(let value):
+        guard let text = value as? String, let data = text.data(using: .utf8),
+              let report = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+          print(value as? String ?? String(describing: value)); exit(0)
+        }
+        // then the login check: open My pass (logged out, see websiteDataStore) and click Log in with AniList
+        self.selfTestReport = report
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { self.finishSelfTest(login: nil) } // the click never came
+        webView.load(URLRequest(url: URL(string: "animetro://app/pass.html")!))
       case .failure(let error): // still one line of valid JSON, whatever the message says
         let line = try? JSONSerialization.data(withJSONObject: ["error": error.localizedDescription])
         print(line.flatMap { String(data: $0, encoding: .utf8) } ?? "{\"error\": \"unknown\"}")
+        exit(0)
       }
-      exit(0)
     }
+  }
+
+  // Self-test, part two, on My pass: click the one-click Log in link as a rider would. decidePolicyFor catches the
+  // navigation it starts and finishSelfTest reports where it went; AniList's page is never loaded.
+  func clickLogIn(_ webView: WKWebView) {
+    let js = """
+      for (let i = 0; i < 40; i++) {
+        const a = [...document.querySelectorAll('a')].find(a => a.textContent.trim() === 'Log in with AniList');
+        if (a) { a.click(); return true; }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      return false;
+      """
+    webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { result in
+      if case .success(let clicked) = result, clicked as? Bool != true { self.finishSelfTest(login: nil) } // no link
+    }
+  }
+
+  // login: true when the click went to AniList's authorize page for Animetro's Mac client: implicit grant
+  // (response_type=token, so no secret) with a one-time state. loginURL shows where it went.
+  func finishSelfTest(login: URL?) {
+    guard var report = selfTestReport else { return }
+    selfTestReport = nil
+    let query = login.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+    let item = { (name: String) in query.first { $0.name == name }?.value ?? "" }
+    let state = item("state")
+    report["login"] = login?.scheme == "https" && login?.host == "anilist.co" && login?.path == "/api/v2/oauth/authorize"
+      && query.map(\.name) == ["client_id", "response_type", "state"]
+      && item("client_id") == "56211" && item("response_type") == "token"
+      && state.count == 32 && state.allSatisfy(\.isHexDigit)
+    report["loginURL"] = login?.absoluteString ?? NSNull()
+    let line = (try? JSONSerialization.data(withJSONObject: report)).flatMap { String(data: $0, encoding: .utf8) }
+    print(line ?? "{\"error\": \"report\"}")
+    exit(0)
   }
 
   // Messages from the page. "busy": how many scores Rapid rating is still saving. "look": the livery's mode and page color, so the title bar and window match (and
