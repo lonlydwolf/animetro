@@ -264,13 +264,19 @@ export async function listStatus(ids) {
 }
 
 // Every title on the rider's list as Map(mediaId -> status). One request, kept in memory for this page only.
+// If it can't be read it rejects and is asked again next time: an empty Map would quietly tell "new to me"
+// that you've seen nothing.
 let listPromise;
 export function myList() {
-  return (listPromise ??= me().then(async user => {
-    if (!user) return new Map();
-    const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ mediaId status } } } }`, { u: user.id });
-    return new Map(d.MediaListCollection.lists.flatMap(l => l.entries).map(e => [e.mediaId, e.status]));
-  }).catch(() => new Map()));
+  if (!listPromise) {
+    const p = (listPromise = me().then(async user => {
+      if (!user) return new Map();
+      const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ mediaId status } } } }`, { u: user.id });
+      return new Map(d.MediaListCollection.lists.flatMap(l => l.entries).map(e => [e.mediaId, e.status]));
+    }));
+    p.catch(() => { if (listPromise === p) listPromise = null; });
+  }
+  return listPromise;
 }
 // "Seen" = anything you've started, finished or given up on. Planning still counts as new.
 export const seenIds = async () => [...(await myList())].filter(([, s]) => s !== 'PLANNING').map(([id]) => id);
