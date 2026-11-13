@@ -74,7 +74,7 @@ export function header() {
     if (safeUrl(u.avatar?.large)) $('.pass-avatar', el).style.backgroundImage = `url("${u.avatar.large}")`;
     $('.pass-avatar', el).classList.add('on');
     $('.pass-name', el).textContent = u.name;
-  });
+  }, () => {}); // who you are couldn't be read: the badge stays plain "My pass"; the page itself says why
   addEventListener('ratelimit', e => toast(`Pausing ${e.detail}s to stay under AniList's limit of 30 requests a minute…`));
 }
 

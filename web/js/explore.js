@@ -29,7 +29,7 @@ async function setup() {
   $('#tickets').innerHTML = tickets().map(([k, t]) => `<label><input type="radio" name="ticket" value="${k}"${ticket === k ? ' checked' : ''}><span>${t.label}</span></label>`).join('');
   $('#unlock').hidden = prefs.adult();
   $('#unlock').onclick = adultGate;
-  me().then(u => { $('#fresh-wrap').hidden = !u; if (u && state.fresh && !form.elements.fresh.checked) { form.elements.fresh.checked = true; search(); } });
+  me().then(u => { $('#fresh-wrap').hidden = !u; if (u && state.fresh && !form.elements.fresh.checked) { form.elements.fresh.checked = true; search(); } }, () => {}); // unreadable: no "new to me" (it needs your list)
   for (const k of ['q', 'format', 'status', 'season', 'year', 'score', 'sort']) if (state[k] && form.elements[k]) form.elements[k].value = state[k];
   renderTags();
   search();

@@ -73,7 +73,7 @@ $('#rows').addEventListener('click', e => {
   if (tr && !e.target.closest('a')) location.href = `anime.html?id=${tr.dataset.id}`;
 });
 $('#niche').onchange = $('#mine').onchange = render;
-me().then(u => { if (u) $('#mine-wrap').hidden = false; });
+me().then(u => { if (u) $('#mine-wrap').hidden = false; }, () => {}); // unreadable: no "on my list" filter
 
 setInterval(tick, 1000);
 load();
