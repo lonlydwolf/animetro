@@ -1,6 +1,7 @@
-import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds, saveEntries } from './api.js';
+import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds } from './api.js';
 import { countPages } from './probe.js';
 import { header, $, esc, FORMAT, toast, nsfw, cover } from './ui.js';
+import { planBoard } from './plan.js';
 
 header();
 const GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
@@ -14,8 +15,9 @@ const rarity = m =>
   m.averageScore >= 80 && m.popularity < 60000 ? 'SSR' : m.averageScore >= 78 ? 'SR' : m.averageScore >= 68 ? 'R' : 'N';
 
 const totals = new Map(); // filter key -> how many shows match (memory only)
+const board = planBoard(); // what we know about your list, per show; every card of a show paints from it
 let user;
-me().then(u => { user = u; $('#fresh-wrap').hidden = !u; });
+me().then(u => { user = u; $('#fresh-wrap').hidden = !u; }, () => {}); // unknown for now: the first pull asks again
 
 async function filters() {
   const t = TICKETS[$('#ticket').value];
@@ -73,7 +75,7 @@ function reveal(list) {
               <small>${[FORMAT[m.format], m.seasonYear, m.averageScore && `${m.averageScore}%`].filter(Boolean).join('  ')}</small>
               <div class="links">
                 <a class="tag" href="line.html?id=${m.id}" style="text-decoration:none">Watch order</a>
-                ${user?.canWrite ? `<button class="tag add" data-plan="${m.id}">+ Planning</button>` : ''}
+                <span data-slot="${m.id}" style="display:contents">${board.slot(m.id, user?.canWrite)}</span>
               </div>
             </div>
           </div>
@@ -96,8 +98,15 @@ async function go(n) {
   $('#knob').classList.add('turn');
   $('#dome').classList.add('shake');
   try {
-    const [list] = await Promise.all([pull(n), new Promise(r => setTimeout(r, 1000))]);
+    // your list status for these shows, so a result already on your list shows that instead of + Planning
+    const pulled = pull(n).then(async list => {
+      user = await me().catch(() => user); // who you are couldn't be read: the board shows unknown, the pull still lands
+      await board.learn(list.map(m => m.id));
+      return list;
+    });
+    const [list] = await Promise.all([pulled, new Promise(r => setTimeout(r, 1000))]);
     reveal(list);
+    list.forEach(m => paint(m.id)); // earlier pulls of the same shows catch up too
   } catch (e) { toast(e.message); }
   $('#knob').classList.remove('turn');
   $('#dome').classList.remove('shake');
@@ -106,9 +115,27 @@ async function go(n) {
 
 $('#one').onclick = $('#knob').onclick = () => go(1);
 $('#ten').onclick = () => go(10);
+const paint = id => $('#pulls').querySelectorAll(`[data-slot="${id}"]`).forEach(el => (el.innerHTML = board.slot(id, user?.canWrite)));
+const SAID = {
+  added: 'Added to Planning',
+  listed: "It's already on your list, so nothing was changed.",
+  unknown: "Couldn't confirm it isn't on your list, so nothing was changed. Check again in a moment.",
+};
 $('#pulls').addEventListener('click', async e => {
-  const b = e.target.closest('[data-plan]');
-  if (!b) return;
-  try { await saveEntries([{ mediaId: +b.dataset.plan, status: 'PLANNING' }]); b.outerHTML = '<span class="tag s-PLANNING">Planning</span>'; toast('Added to Planning'); }
-  catch (err) { toast(err.message); }
+  const r = e.target.closest('[data-recheck]'), b = e.target.closest('[data-plan]');
+  if (!(r || b) || (r || b).disabled) return;
+  const id = +(r ? r.dataset.recheck : b.dataset.plan);
+  if (r) {
+    r.disabled = true;
+    const s = await board.recheck(id);
+    if (s === 'stale') return; // a newer check for this show paints instead
+    paint(id);
+    if (s === 'unknown') toast("Still couldn't check your list. Try again in a moment.");
+    return;
+  }
+  // the card is only a hint: add() looks the show up again and saves only if it's really not on your list
+  const adding = board.add(id);
+  paint(id); // every + Planning for this show greys out while it checks
+  try { const s = await adding; if (SAID[s]) toast(SAID[s]); } catch (err) { toast(err.message); }
+  paint(id);
 });
