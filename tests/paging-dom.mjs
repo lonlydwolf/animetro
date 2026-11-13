@@ -10,6 +10,7 @@ const API = `
 export const gql = (...a) => globalThis.__gql(...a);
 export const listStatus = ids => globalThis.__listStatus(ids);
 export const me = async () => globalThis.__me;
+export class UnknownUser extends Error {}
 export const title = m => m.title.english;
 export const rankSearch = () => [];
 export const CARD = 'id';
