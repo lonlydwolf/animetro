@@ -59,19 +59,21 @@ npm test
 web/            the app: one HTML page per screen, css/, js/ (ES modules), img/
   js/           pure logic (order, score, fit, odds, map, journal, streams, simkl) is kept
                 apart from the page scripts so it can be tested without a browser
-macos/          the Mac app: Animetro.swift, Info.plist, icon, build.sh, dev.sh, selftest.sh
+macos/          the Mac app: Animetro.swift, Info.plist, icon, build.sh, dev.sh, selftest.sh,
+                test.sh and its Swift unit tests in tests/
 tests/          node:test unit tests per module, plus structure checks
 .github/        CI, release workflow, Dependabot, issue and pull request templates
 ```
 
 | Command | What it does |
 |---|---|
-| `npm start` | Serve `web/` at http://localhost:5180 |
+| `npm start` | Serve `web/` at http://localhost:5180 (this computer only) |
 | `npm test` | Run all tests |
 | `npm run lint` | ESLint (`npm install` first; dev tools only) |
 | `npm run build:mac` | Build `build/Animetro.app` |
 | `npm run dev:mac` | Run the Mac app against `web/` (edit, then ⌘R) |
-| `./macos/selftest.sh` | Launch the built app and check it renders |
+| `./macos/test.sh` | Unit-test the Mac app's Swift code (no internet needed) |
+| `./macos/selftest.sh` | Launch the built app and check it loads, stores settings, reaches AniList and draws a share-card picture |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, [SECURITY.md](SECURITY.md) for reporting problems and what's stored, and [CHANGELOG.md](CHANGELOG.md) for what changed.
 
@@ -144,7 +146,7 @@ AniList currently allows 30 requests a minute. Animetro batches queries, reuses 
 
 ## Releases
 
-Every push and pull request runs [CI](.github/workflows/ci.yml): lint, tests, a gitleaks secret scan over the whole history, and a macOS job that builds the app and launches it. Pushing a tag like `v1.2.0` runs the [release workflow](.github/workflows/release.yml): the full CI first, then it builds the universal app with that version, smoke-tests it, zips it and publishes a GitHub release with that version's CHANGELOG section as the notes.
+Every push to `main` and every pull request runs [CI](.github/workflows/ci.yml): lint, tests, a gitleaks secret scan over the whole history, and a macOS job that runs the Swift unit tests, builds the app and launches it. Pushing a tag like `v1.2.0` runs the [release workflow](.github/workflows/release.yml): the full CI first, then it builds the universal app with that version, smoke-tests it, zips it and publishes a GitHub release with that version's CHANGELOG section as the notes.
 
 ## License
 
