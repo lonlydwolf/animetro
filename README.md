@@ -37,7 +37,7 @@ cd animetro
 
 ```sh
 cd animetro
-python3 -m http.server 5180 --directory web   # or: npm start
+python3 -m http.server 5180 --bind 127.0.0.1 --directory web   # or: npm start
 ```
 
 Open http://localhost:5180. It has no build step and no dependencies. Any static file server works, but it has to be a server, because ES modules won't load from `file://`.
