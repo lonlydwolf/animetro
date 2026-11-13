@@ -110,6 +110,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   var titleWatch: NSKeyValueObservation?
   let selfTest = ProcessInfo.processInfo.environment["ANIMETRO_SELFTEST"] != nil
   var savingScores = 0 // scores Rapid rating is still sending to AniList; the page reports it, leaving drops them
+  var crashes: [Date] = [] // when the page's process last died, to tell a one-off from a page that keeps dying
 
   func applicationDidFinishLaunching(_ note: Notification) {
     let config = WKWebViewConfiguration()
@@ -201,6 +202,31 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   static func openExternally(_ url: URL) {
     guard let scheme = url.scheme?.lowercased(), ["https", "http", "mailto"].contains(scheme) else { return }
     NSWorkspace.shared.open(url)
+  }
+
+  // WebKit runs the page in its own process; if that dies (memory pressure, a WebKit bug) the window goes blank.
+  // Bring it back: the same page the first time, Home if it dies again soon after, and if Home keeps dying too, ask
+  // instead of looping. Whatever the page was sending to AniList died with it.
+  func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    savingScores = 0
+    let now = Date()
+    crashes = crashes.filter { now.timeIntervalSince($0) < 30 } + [now]
+    switch crashes.count {
+    case 1 where webView.url != nil: webView.reload()
+    case 1, 2: webView.load(URLRequest(url: home))
+    default:
+      guard window.attachedSheet == nil else { return }
+      let alert = NSAlert()
+      alert.messageText = "Animetro's page keeps stopping"
+      alert.informativeText = "The page quit unexpectedly several times in a row."
+      alert.addButton(withTitle: "Try Again")
+      alert.addButton(withTitle: "Quit")
+      alert.beginSheetModal(for: window) { response in
+        if response == .alertSecondButtonReturn { return NSApp.terminate(nil) }
+        self.crashes = []
+        webView.load(URLRequest(url: home))
+      }
+    }
   }
 
   // The page leaves room for the close/minimize/zoom buttons, which full screen hides; tell each page which it is.
