@@ -1,6 +1,6 @@
 import { gql, me, title, saveEntries, prefs } from './api.js';
 import { header, $, esc, countdown, minutes, toast, fail, cover, tint, nsfw } from './ui.js';
-import { remaining, fit, finishes } from './fit.js';
+import { remaining, fit, finishes, logged } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 import { recapOn, setRecap, ago } from './recap.js';
 
@@ -131,8 +131,9 @@ page.addEventListener('click', async ev => {
   if (card && (plus || done)) {
     const e = riding.find(x => x.media.id === +card.dataset.id), m = e?.media;
     if (!e || pending.has(m.id)) return;
+    const progress = logged(e.progress, m, !!done);
+    if (progress == null) return; // +1 past the final episode
     pending.add(m.id);
-    const progress = done ? e.progress : e.progress + 1;
     const finished = done || finishes(progress, m);
     (plus || done).disabled = true;
     try {
@@ -142,12 +143,13 @@ page.addEventListener('click', async ev => {
         chime('done');
         toast(`End of the line! ${title(m)} completed.`);
         card.classList.add('arrived');
-        setTimeout(() => { riding = riding.filter(x => x !== e); render(); }, 900);
-      } else {
-        chime('tick');
-        toast(`Episode ${progress} logged`);
-        render();
+        // the card stays locked through its exit: a second click here would log past the final episode
+        setTimeout(() => { riding = riding.filter(x => x !== e); pending.delete(m.id); render(); }, 900);
+        return;
       }
+      chime('tick');
+      toast(`Episode ${progress} logged`);
+      render();
     } catch (err) { toast(err.message); (plus || done).disabled = false; }
     pending.delete(m.id);
     document.querySelectorAll(`.ride[data-id="${m.id}"] [data-plus], .ride[data-id="${m.id}"] [data-complete]`).forEach(b => b.removeAttribute('disabled'));
