@@ -97,6 +97,10 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
   const key = digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
   const hit = !mutation && !fresh && cache.get(key);
   if (hit) return hit;
+  if (mutation && meFor !== undefined && meFor !== account()) { // see the storage listener below
+    location.reload();
+    throw new Error('Your AniList login changed in another tab. Reloading…');
+  }
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (token() && personal) headers.Authorization = 'Bearer ' + token();
@@ -134,20 +138,26 @@ export class UnknownUser extends Error {
   constructor(name) { super(`No AniList user called "${name}".`); this.name = 'UnknownUser'; this.username = name; }
 }
 
-let mePromise;
+// The cached profile is stamped with the account it belongs to: a fingerprint of the token (never the token
+// itself) or the username. Log in as someone else and the stamp no longer matches, so it's fetched again.
+const account = () => (token() ? 't:' + digest(token()) : store.get(KEY.user) ? 'u:' + store.get(KEY.user) : '');
+let mePromise, meFor; // meFor: the account this page's identity (and so its list and save buttons) was built for
 // null only means nobody is logged in (no token, no username). Anything else that stops us knowing who you
 // are (offline, AniList down, an unknown username) rejects, so pages show the error rather than the
 // "Connect AniList" screen. A rejection isn't remembered: the next call asks again.
 export function me() {
   if (!mePromise) {
-    const p = (mePromise = whoAmI());
+    const p = (mePromise = whoAmI((meFor = account())));
     p.catch(() => { if (mePromise === p) mePromise = null; });
   }
   return mePromise;
 }
-async function whoAmI() {
-  const cached = store.get(KEY.me, sessionStorage);
-  if (cached) return JSON.parse(cached);
+async function whoAmI(who) {
+  if (!who) return null;
+  try {
+    const cached = JSON.parse(store.get(KEY.me, sessionStorage));
+    if (cached?.who === who) return cached.user;
+  } catch {}
   // Identity has its own cache (KEY.me, written only on success). Through the query cache, an empty answer
   // would be replayed for 5 minutes and a retry could never recover.
   const ask = { fresh: true, remember: false };
@@ -163,15 +173,25 @@ async function whoAmI() {
     if (!user) throw new UnknownUser(name);
     user.canWrite = false;
   }
-  if (user) store.set(KEY.me, JSON.stringify(user), sessionStorage);
+  if (account() === who) store.set(KEY.me, JSON.stringify({ who, user }), sessionStorage);
   return user;
 }
+
+// Another tab logged in, logged out or switched account. Everything on this page (name, list, save buttons)
+// belongs to the old account while saves would go out under the new token, so start over.
+// (gql refuses a save in the moment before this event arrives.)
+addEventListener('storage', e => {
+  if (e.storageArea !== localStorage || (e.key !== null && e.key !== KEY.token && e.key !== KEY.user)) return;
+  store.set(KEY.me, null, sessionStorage);
+  mePromise = meFor = undefined;
+  location.reload();
+});
 
 export function useUsername(name) {
   store.set(KEY.user, name.trim());
   store.set(KEY.token, null);
   store.set(KEY.me, null, sessionStorage);
-  mePromise = null;
+  mePromise = meFor = undefined;
 }
 export function setClientId(id) { store.set(KEY.client, id.trim()); }
 export function loginUrl() {
@@ -183,7 +203,7 @@ export function logout() {
   [KEY.token, KEY.user].forEach(k => store.set(k, null));
   cache.clear();
   store.set(KEY.me, null, sessionStorage);
-  mePromise = null;
+  mePromise = meFor = undefined;
 }
 
 // Map of mediaId -> {status, progress, score} for the current rider, in one request.
