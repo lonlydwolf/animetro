@@ -3,6 +3,7 @@ import { header, $, esc, countdown, minutes, toast, fail, cover, tint, nsfw } fr
 import { remaining, fit, finishes, logged } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 import { recapOn, setRecap, ago } from './recap.js';
+import { holdFocus, refocus } from './focus.js';
 
 header();
 const page = $('#page');
@@ -125,6 +126,17 @@ function ride({ e, r }) {
     </div>`;
 }
 
+// What to focus after a redraw: the same control, found again by what it is and which show it belongs to.
+function focusKey(el) {
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  const card = el.closest('.ride');
+  const box = card ? `.ride[data-id="${card.dataset.id}"] ` : el.closest('.fit-list') ? '.fit-list ' : el.closest('.paused') ? '.paused ' : '';
+  const attr = ['data-plus', 'data-complete', 'data-fit'].find(a => el.hasAttribute(a));
+  if (attr) return `${box}[${attr}${el.getAttribute(attr) ? `="${CSS.escape(el.getAttribute(attr))}"` : ''}]`;
+  if (el.matches('a[href]')) return `${box}a[href="${CSS.escape(el.getAttribute('href'))}"]`;
+  return null;
+}
+
 page.addEventListener('click', async ev => {
   const card = ev.target.closest('.ride');
   const plus = ev.target.closest('[data-plus]'), done = ev.target.closest('[data-complete]');
@@ -134,12 +146,14 @@ page.addEventListener('click', async ev => {
     const progress = logged(e.progress, m, !!done);
     if (progress == null) return; // +1 past the final episode
     pending.add(m.id);
-    const finished = done || finishes(progress, m);
-    (plus || done).disabled = true;
+    const finished = done || finishes(progress, m), button = plus || done, hold = holdFocus(document, page, button);
+    let saved = false;
+    button.disabled = true;
     try {
       await saveEntries([{ mediaId: m.id, progress, ...(finished ? { status: 'COMPLETED' } : {}) }]);
       e.progress = progress;
       if (finished) {
+        hold.drop();
         chime('done');
         toast(`End of the line! ${title(m)} completed.`);
         card.classList.add('arrived');
@@ -149,10 +163,16 @@ page.addEventListener('click', async ev => {
       }
       chime('tick');
       toast(`Episode ${progress} logged`);
-      render();
-    } catch (err) { toast(err.message); (plus || done).disabled = false; }
+      saved = true;
+    } catch (err) { toast(err.message); }
+    // read focus just before the redraw; the clicked control falls back to the nearest one left on its card
+    // (an airing show that just caught up loses its +1)
+    const at = `.ride[data-id="${m.id}"]`;
+    const to = hold.settle(focusKey, [`${at} ${plus ? '[data-plus]' : '[data-complete]'}`, `${at} [data-plus]`, `${at} [data-complete]`, `${at} .ride-title`]);
     pending.delete(m.id);
-    document.querySelectorAll(`.ride[data-id="${m.id}"] [data-plus], .ride[data-id="${m.id}"] [data-complete]`).forEach(b => b.removeAttribute('disabled'));
+    if (saved) render();
+    else document.querySelectorAll(`${at} [data-plus], ${at} [data-complete]`).forEach(b => b.removeAttribute('disabled'));
+    refocus(page, to);
     return;
   }
   const chip = ev.target.closest('[data-fit]');
