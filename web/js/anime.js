@@ -271,18 +271,20 @@ async function loadEps(from) {
   const panel = $('#panel-episodes');
   if (!eps.rows) panel.innerHTML = '<div class="loading"><div class="train" aria-hidden="true"><i></i><i></i><i></i></div><p>Fetching episodes…</p></div>';
   else $('#eps')?.setAttribute('aria-busy', 'true');
+  // AniList's streaming links don't depend on Kitsu, so ask for them first and let both run at once (asked once per page)
+  eps.streams ??= gql('query($id:Int){Media(id:$id){streamingEpisodes{title thumbnail url site}}}', { id }).then(d => d.Media.streamingEpisodes).catch(() => []);
   let kitsu = [], count = 0, note;
   try {
     if (eps.kid === undefined) eps.kid = await kitsuId(media);
     if (eps.kid) ({ eps: kitsu, count } = await kitsuRange(eps.kid, from, episodeTotal(media) - from));
     note = eps.kid ? 'Titles, pictures and summaries from <a href="https://kitsu.app" target="_blank" rel="noopener">Kitsu</a>.' : "Kitsu doesn't have this show, so only numbers and dates are shown.";
   } catch { note = "Couldn't reach Kitsu for titles and pictures. Try again later."; }
-  eps.streams ??= await gql('query($id:Int){Media(id:$id){streamingEpisodes{title thumbnail url site}}}', { id }).then(d => d.Media.streamingEpisodes).catch(() => []);
+  const streams = await eps.streams;
   if (gen !== eps.gen) return;
   eps.note = note;
   eps.from = from;
   eps.total = Math.max(eps.total, episodeTotal(media, count));
-  const all = rows({ total: eps.total, kitsu, streams: eps.streams, schedule: media.airingSchedule.nodes, aired: airedCount(media) });
+  const all = rows({ total: eps.total, kitsu, streams, schedule: media.airingSchedule.nodes, aired: airedCount(media) });
   eps.rows = all.slice(from, from + PAGE);
   drawEps();
 }
