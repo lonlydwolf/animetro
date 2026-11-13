@@ -59,7 +59,7 @@ function paint() {
       <p class="rate-count"><b>${queue.length}</b> to rate${done.length ? `<span> · ${done.length} rated now</span>` : ''}</p>
     </section>
     ${e ? `
-    <article class="rate-card${nsfw(m)}" style="--c:${tint(m, 'var(--platform)')}">
+    <div class="rate-stage"><article class="rate-card${nsfw(m)}" style="--c:${tint(m, 'var(--platform)')}">
       <a class="rate-poster" href="anime.html?id=${m.id}" title="Details"><img src="${cover(m, 'extraLarge')}" alt=""></a>
       <div class="rate-body">
         <p class="rate-meta">${esc([FORMAT[m.format], m.seasonYear, m.episodes > 1 ? `${m.episodes} episodes` : ''].filter(Boolean).join(' · '))}</p>
@@ -76,7 +76,7 @@ function paint() {
           <small class="rate-keys">${keysHint()}</small>
         </div>
       </div>
-    </article>
+    </article></div>
     ${queue.length > 1 ? `<section class="rate-next"><h3>Next stops</h3><div>${queue.slice(1, 11).map((x, i) => `
       <button type="button" class="${nsfw(x.media).trim()}" data-jump="${i + 1}" title="Rate ${esc(title(x.media))} now"><img src="${cover(x.media)}" alt="${esc(title(x.media))}" loading="lazy"></button>`).join('')}
       ${queue.length > 11 ? `<span>+${queue.length - 11}</span>` : ''}</div></section>` : ''}`
