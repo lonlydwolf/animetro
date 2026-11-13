@@ -6,3 +6,6 @@ const memory = () => {
 };
 globalThis.sessionStorage = memory();
 globalThis.localStorage = memory();
+// window events (storage, ratelimit, …) on a plain EventTarget
+const win = new EventTarget();
+for (const k of ['addEventListener', 'removeEventListener', 'dispatchEvent']) globalThis[k] ??= win[k].bind(win);
