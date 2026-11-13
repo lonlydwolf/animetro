@@ -1,9 +1,8 @@
 // "Got some time?": fills a time budget with episodes you can actually watch now.
 // Pure logic (no DOM, no network) so test/check.mjs can run it.
 
-const released = m => (m.status === 'NOT_YET_RELEASED' ? 0
-  : m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1
-  : m.episodes ?? (m.format === 'MOVIE' ? 1 : 0));
+import { airedCount } from './episodes.js';
+
 export const epMinutes = m => m.duration || (m.format === 'MOVIE' ? 100 : 24);
 
 // Logging this episode completes the show only when AniList knows the final count and you've reached it.
@@ -11,10 +10,24 @@ export const epMinutes = m => m.duration || (m.format === 'MOVIE' ? 100 : 24);
 export const finishes = (progress, m) => !!m?.episodes && progress >= m.episodes;
 
 // What's left of a show you're watching: episodes out but unwatched, and whether watching them all finishes it.
+// airedCount() decides what is out. When it can't tell (airing with no schedule on AniList), out is null and nothing
+// counts as ready: the show is neither "all watched" nor "every episode ready", and logging stays open up to the final
+// count. Reaching AniList's final count ends the show whatever the schedule says.
 export function remaining(e) {
-  const m = e.media, out = released(m), left = Math.max(0, out - (e.progress || 0));
-  // "last" = one episode left of a finished show that has more than one episode (a movie is just one sitting)
-  return { out, left, airing: !!m.nextAiringEpisode, last: !m.nextAiringEpisode && left === 1 && out > 1, minutes: left * epMinutes(m) };
+  const m = e.media, p = e.progress || 0, total = m.episodes;
+  let aired = airedCount(m);
+  if (aired == null && total && p >= total) aired = Infinity;
+  const unknown = aired == null, airing = aired !== Infinity;
+  const out = unknown ? null : Math.min(aired, total || (m.format === 'MOVIE' ? 1 : airing ? Infinity : 0));
+  const left = unknown ? 0 : Math.max(0, out - p);
+  return {
+    out, left, airing, unknown,
+    // "last" = one episode left of a finished show that has more than one episode (a movie is just one sitting)
+    last: !airing && left === 1 && out > 1,
+    // +1 makes sense: an episode is known to be out, or might be (schedule unknown, final count not reached)
+    more: left > 0 || unknown,
+    minutes: left * epMinutes(m),
+  };
 }
 
 // riding: list entries you're watching; planning: entries on your Planning list (each { progress, media }).

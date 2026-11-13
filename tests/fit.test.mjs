@@ -10,7 +10,7 @@ const planning = [{ progress: 0, media: show(4, { averageScore: 90 }) }, { progr
   { progress: 0, media: show(6, { averageScore: 80 }) }, { progress: 0, media: show(7, { averageScore: 75 }) }];
 
 test('what is left of a show, and when it is the last episode', () => {
-  assert.deepEqual(remaining({ progress: 11, media: show(1) }), { out: 12, left: 1, airing: false, last: true, minutes: 24 });
+  assert.deepEqual(remaining({ progress: 11, media: show(1) }), { out: 12, left: 1, airing: false, unknown: false, last: true, more: true, minutes: 24 });
   assert.equal(remaining({ progress: 5, media: airing }).left, 0, 'caught up with an airing show');
   assert.equal(remaining({ progress: 3, media: airing }).last, false, 'airing shows have no last episode');
 });
@@ -43,4 +43,28 @@ test('catching up with an airing show does not complete it; reaching the known f
   assert.equal(finishes(5, { episodes: 12, nextAiringEpisode: { episode: 6 } }), false);
   assert.equal(finishes(12, { episodes: 12 }), true);
   assert.equal(finishes(1, { episodes: 1, format: 'MOVIE' }), true);
+});
+
+test('an airing show with no schedule on AniList: aired count unknown, never "all watched" or "all ready"', () => {
+  const noSchedule = extra => show(8, { status: 'RELEASING', episodes: null, nextAiringEpisode: null, ...extra });
+  const unknown = remaining({ progress: 3, media: noSchedule() });
+  assert.deepEqual(unknown, { out: null, left: 0, airing: true, unknown: true, last: false, more: true, minutes: 0 });
+  const counted = remaining({ progress: 3, media: noSchedule({ episodes: 12 }) });
+  assert.equal(counted.left, 0, 'a known final count is not a count of episodes out');
+  assert.ok(counted.airing && counted.unknown && counted.more, 'still airing, and +1 stays open');
+  assert.equal(remaining({ progress: 3, media: noSchedule({ status: 'HIATUS', episodes: 12 }) }).unknown, true, 'on hiatus');
+  const reached = remaining({ progress: 12, media: noSchedule({ episodes: 12 }) });
+  assert.deepEqual([reached.airing, reached.left, reached.more], [false, 0, false], 'reaching the final count ends it');
+  assert.equal(fit(2000, [{ progress: 3, media: noSchedule({ episodes: 12 }) }], []).picks.length, 0, 'no unknown episodes in a time budget');
+});
+
+test('a show that has not aired yet is waiting, not finished', () => {
+  const r = remaining({ progress: 0, media: show(9, { status: 'NOT_YET_RELEASED', nextAiringEpisode: null }) });
+  assert.deepEqual([r.out, r.left, r.airing, r.more], [0, 0, true, false]);
+});
+
+test('an airing show with a schedule: what has aired is out, capped at the final count', () => {
+  assert.deepEqual(remaining({ progress: 3, media: airing }).out, 5);
+  assert.equal(remaining({ progress: 3, media: { ...airing, episodes: 12 } }).left, 2);
+  assert.equal(remaining({ progress: 0, media: show(10, { format: 'MOVIE', episodes: null }) }).left, 1, 'a finished movie with no count is one sitting');
 });

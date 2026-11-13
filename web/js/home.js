@@ -37,9 +37,10 @@ function render() {
   const rows = riding.map(e => ({ e, r: remaining(e) }));
   const ready = rows.filter(x => x.r.left > 0 || !x.r.airing)
     .sort((a, b) => b.r.last - a.r.last || a.r.minutes - b.r.minutes);
-  const waiting = rows.filter(x => x.r.left === 0 && x.r.airing)
-    .sort((a, b) => a.e.media.nextAiringEpisode.airingAt - b.e.media.nextAiringEpisode.airingAt);
-  const today = waiting.filter(x => x.e.media.nextAiringEpisode.airingAt - Date.now() / 1000 < 86400).length;
+  // airing shows with nothing known to be out; ones AniList has no schedule for go last
+  const at = x => x.e.media.nextAiringEpisode?.airingAt ?? Infinity;
+  const waiting = rows.filter(x => x.r.left === 0 && x.r.airing).sort((a, b) => at(a) - at(b));
+  const today = waiting.filter(x => at(x) - Date.now() / 1000 < 86400).length;
   const left = ready.reduce((a, x) => a + x.r.minutes, 0);
 
   page.innerHTML = `
@@ -58,7 +59,7 @@ function render() {
 
     ${waiting.length ? `<section>
       <div class="section-head"><h2>Waiting at the platform</h2><a href="departures.html">Full board</a></div>
-      <p class="hint">You're caught up. These are the next episodes on their way.</p>
+      <p class="hint">${waiting.some(x => x.r.unknown) ? 'These are the next episodes on their way. Shows with no schedule on AniList may have new ones out already.' : "You're caught up. These are the next episodes on their way."}</p>
       <div class="rides">${waiting.map(ride).join('')}</div></section>` : ''}
 
     ${paused.length ? `<section>
@@ -104,9 +105,11 @@ function ride({ e, r }) {
     : r.left > 1 ? `${r.left} episode${r.left === 1 ? '' : 's'} ${r.airing ? 'ready' : 'left'} · ${minutes(r.minutes)}`
     : r.left === 1 && r.out === 1 ? `One sitting · ${minutes(r.minutes)}`
     : r.left === 1 ? `1 episode ready · ${minutes(r.minutes)}`
+    : r.unknown ? 'Airing · no schedule on AniList'
+    : m.status === 'NOT_YET_RELEASED' ? 'Not aired yet'
     : r.airing ? 'Caught up'
     : 'Every episode watched';
-  const canPlus = user.canWrite && (r.left > 0 || (!r.airing && total && e.progress < total));
+  const canPlus = user.canWrite && (r.more || (!r.airing && total && e.progress < total));
   return `
     <div class="ride${r.last ? ' is-last' : ''}${nsfw(m)}" style="--c:${tint(m, 'var(--platform)')}" data-id="${m.id}">
       <a class="ride-cover" href="anime.html?id=${m.id}"><img src="${cover(m)}" alt="" loading="lazy"></a>
