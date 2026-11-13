@@ -52,7 +52,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 //   already in flight says nothing about the refusal, so it can't lift it.
 // - running low: left/resetAt, refreshed by every response.
 // Retry-After is only a fallback, since AniList doesn't expose it to browsers (CORS).
-let left = Infinity, limit = 0, resetAt = 0, pausedUntil = 0;
+let left = Infinity, limit = 0, resetAt = 0, pausedUntil = 0, heardAt = 0; // heardAt: when a response last said how many are left
 const WINDOW = 60_000; // AniList counts per minute
 const MIN_WAIT = 1_000, MAX_WAIT = 65_000, FALLBACK_WAIT = 15_000, RETRIES = 3;
 // room for requests already in flight: a tenth of the limit, whatever AniList currently says it is
@@ -65,14 +65,37 @@ function untilReset(res) {
   const ms = reset == null ? 0 : reset * 1000 - Date.now();
   return ms > 0 ? bound(ms) : null;
 }
-const waitUntil = () => Math.max(pausedUntil, left <= margin() ? resetAt : 0);
-async function gate() {
+// soft: wait while running low (inside the margin). A request whose room was booked with reserve() isn't held for
+// the margin, only for a 429 pause or AniList saying none are left at all.
+const low = (soft = true) => left <= (soft ? margin() : 0);
+const waitUntil = (soft = true) => Math.max(pausedUntil, low(soft) ? resetAt : 0);
+async function gate(soft = true) {
   // a loop: a 429 that lands during the wait can move the deadline later
-  for (let until = waitUntil(); Date.now() < until; until = waitUntil()) {
+  for (let until = waitUntil(soft); Date.now() < until; until = waitUntil(soft)) {
     dispatchEvent(new CustomEvent('ratelimit', { detail: Math.ceil((until - Date.now()) / 1000) }));
     await sleep(until - Date.now());
   }
-  if (left <= margin()) left = Infinity; // new window; the next response says how many are really left
+  if (low(soft)) left = Infinity; // new window; the next response says how many are really left
+}
+
+// Book room for `n` requests that must go out back to back, such as a check and the save it allows: wait (before
+// the first of them, never between) until a 429 pause is over and n more would still leave the margin, then count
+// them as used, so other requests see that budget as taken while they're on their way. Send them with
+// { reserved: true }.
+export async function reserve(n) {
+  for (;;) {
+    let until = pausedUntil;
+    if (left - n < margin()) {
+      // the window we last heard about ends at AniList's Reset if it sent one, at the latest a minute after we heard
+      const ends = left <= margin() && resetAt ? resetAt : heardAt + WINDOW;
+      if (Date.now() >= ends) left = Infinity; // it's over: the next response says how many are really left
+      else until = Math.max(until, ends);
+    }
+    if (Date.now() >= until) break;
+    dispatchEvent(new CustomEvent('ratelimit', { detail: Math.ceil((until - Date.now()) / 1000) }));
+    await sleep(until - Date.now());
+  }
+  if (left !== Infinity) left -= n;
 }
 function track(res) {
   const lim = num(res, 'X-RateLimit-Limit');
@@ -87,6 +110,7 @@ function track(res) {
   }
   if (n == null) return;
   left = n;
+  heardAt = Date.now();
   if (left > margin()) return;
   // running low. AniList usually only sends Reset once you're out; without it, assume the window ends in a minute
   if (reset != null) resetAt = Date.now() + reset;
@@ -130,10 +154,11 @@ export class RateLimited extends Error {
 }
 
 // fresh: don't answer from the cache. remember: false = don't put the answer in it either.
+// reserved: its room was booked with reserve(), so it doesn't wait for running low (a 429 pause still applies).
 // retry: false = one attempt, now: no waiting out a rate-limit pause first and no resend after a 429 (both throw
 // RateLimited instead). For a save that was checked just before it goes out: a resend after the wait would act on
 // a check that may no longer hold (another account signed in, or the list changed meanwhile).
-export async function gql(query, variables = {}, { fresh = false, remember = true, retry = true, tries = RETRIES } = {}) {
+export async function gql(query, variables = {}, { fresh = false, remember = true, retry = true, reserved = false, tries = RETRIES } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
   const listBound = personal || LIST_BOUND.test(query);
@@ -147,8 +172,8 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (token() && personal) headers.Authorization = 'Bearer ' + token();
-  if (!retry && Date.now() < waitUntil()) throw new RateLimited();
-  await gate(); // with retry: false there's nothing to wait for by now
+  if (!retry && Date.now() < waitUntil(!reserved)) throw new RateLimited();
+  await gate(!reserved); // with retry: false there's nothing to wait for by now
   let res;
   try {
     res = await fetch(API, { method: 'POST', headers, body: JSON.stringify({ query, variables }) });
@@ -158,7 +183,7 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
   track(res);
   if (res.status === 429) { // track() set the pause; the retry's own gate() waits it out, so waits never stack
     if (!retry) throw new RateLimited();
-    if (tries > 0) return gql(query, variables, { fresh, remember, tries: tries - 1 });
+    if (tries > 0) return gql(query, variables, { fresh, remember, reserved, tries: tries - 1 });
     throw new Error('AniList is turning requests away right now. Wait a minute and try again.');
   }
   const json = await res.json().catch(() => ({}));
@@ -185,16 +210,22 @@ export class UnknownUser extends Error {
 // itself) or the username. Log in as someone else and the stamp no longer matches, so it's fetched again.
 const account = () => (token() ? 't:' + digest(token()) : store.get(KEY.user) ? 'u:' + store.get(KEY.user) : '');
 let mePromise, meFor; // meFor: the account this page's identity (and so its list and save buttons) was built for
+let meNow; // what me() last resolved to, as identity() hands it out
 // null only means nobody is logged in (no token, no username). Anything else that stops us knowing who you
 // are (offline, AniList down, an unknown username) rejects, so pages show the error rather than the
 // "Connect AniList" screen. A rejection isn't remembered: the next call asks again.
 export function me() {
   if (!mePromise) {
-    const p = (mePromise = whoAmI((meFor = account())));
-    p.catch(() => { if (mePromise === p) mePromise = null; });
+    const who = (meFor = account()), p = (mePromise = whoAmI(who));
+    p.then(u => { if (mePromise === p) meNow = Object.freeze({ riderId: u?.id ?? null, canWrite: !!u?.canWrite, account: who }); },
+      () => { if (mePromise === p) mePromise = null; });
   }
   return mePromise;
 }
+// Who this page acts for, right now, without waiting: { riderId, canWrite, account } from the identity me() resolved
+// (account: a fingerprint of the token, or the username; riderId null if nobody is), or undefined if me() hasn't resolved or the signed-in
+// account is no longer the one it resolved for.
+export const identity = () => (meNow && meNow.account === account() ? meNow : undefined);
 async function whoAmI(who) {
   if (!who) return null;
   try {
@@ -226,7 +257,7 @@ async function whoAmI(who) {
 addEventListener('storage', e => {
   if (e.storageArea !== localStorage || (e.key !== null && e.key !== KEY.token && e.key !== KEY.user)) return;
   store.set(KEY.me, null, sessionStorage);
-  mePromise = meFor = undefined;
+  mePromise = meFor = meNow = undefined;
   location.reload();
 });
 
@@ -234,7 +265,7 @@ export function useUsername(name) {
   store.set(KEY.user, name.trim());
   store.set(KEY.token, null);
   store.set(KEY.me, null, sessionStorage);
-  mePromise = meFor = undefined;
+  mePromise = meFor = meNow = undefined;
 }
 export function setClientId(id) { store.set(KEY.client, id.trim()); }
 export function loginUrl() {
@@ -246,7 +277,7 @@ export function logout() {
   [KEY.token, KEY.user].forEach(k => store.set(k, null));
   cache.clear();
   store.set(KEY.me, null, sessionStorage);
-  mePromise = meFor = undefined;
+  mePromise = meFor = meNow = undefined;
 }
 
 // Map of mediaId -> {status, progress, score} for the current rider, in one request.
@@ -281,12 +312,12 @@ export function myList() {
 // "Seen" = anything you've started, finished or given up on. Planning still counts as new.
 export const seenIds = async () => [...(await myList())].filter(([, s]) => s !== 'PLANNING').map(([id]) => id);
 
-// Save many entries in one request using aliased mutations. { retry: false } as for gql().
-export async function saveEntries(entries, { retry = true } = {}) {
+// Save many entries in one request using aliased mutations. { retry: false } and { reserved: true } as for gql().
+export async function saveEntries(entries, { retry = true, reserved = false } = {}) {
   if (!entries.length) return;
   const body = entries.map((e, i) =>
     `m${i}: SaveMediaListEntry(mediaId:${+e.mediaId}${e.status ? `,status:${e.status}` : ''}${e.progress != null ? `,progress:${+e.progress}` : ''}){ mediaId status progress updatedAt }`);
-  const d = await gql(`mutation{ ${body.join(' ')} }`, {}, { retry });
+  const d = await gql(`mutation{ ${body.join(' ')} }`, {}, { retry, reserved });
   // AniList answers a batch with the entries it saved plus an error for the rest; don't call that a success
   const saved = entries.filter((_, i) => d[`m${i}`]).map(e => +e.mediaId);
   if (saved.length < entries.length) {

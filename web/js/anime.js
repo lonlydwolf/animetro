@@ -8,7 +8,7 @@ import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } fr
 import { recapMode, recapPanel } from './recap.js';
 import { youtubeId } from './trailer.js';
 import { memo } from './memo.js';
-import { saveChecked, riderList } from './plan.js';
+import { saveChecked, riderList, notSaved } from './plan.js';
 
 header();
 const id = +qs().get('id');
@@ -236,9 +236,7 @@ async function save(change) {
   } else if (r.changed.has(id)) {
     entry = r.changed.get(id) || undefined;
     toast(`Your list changed somewhere else: this show is ${said(entry)} now. Nothing was changed here.`);
-  } else if (r.rateLimited) toast('AniList is busy right now, so nothing was saved. Try again in a moment.');
-  else if (r.error) toast(r.error.message);
-  else toast("Couldn't check your list just now, so nothing was saved. Try again in a moment.");
+  } else toast(notSaved(r));
   saving = false;
   renderListControls();
   recap();

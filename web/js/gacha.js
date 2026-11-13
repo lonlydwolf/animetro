@@ -1,7 +1,7 @@
 import { gql, me, title, CARD, TICKETS, tickets, ticketAdult, prefs, seenIds } from './api.js';
 import { countPages } from './probe.js';
 import { header, $, esc, FORMAT, toast, nsfw, cover } from './ui.js';
-import { planBoard } from './plan.js';
+import { planBoard, ACCOUNT_CHANGED } from './plan.js';
 
 header();
 const GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
@@ -121,6 +121,7 @@ const SAID = {
   listed: "It's already on your list, so nothing was changed.",
   unknown: "Couldn't confirm it isn't on your list, so nothing was changed. Check again in a moment.",
   'rate-limited': 'AniList is busy right now, so nothing was saved. Try again in a moment.',
+  'account-changed': ACCOUNT_CHANGED,
 };
 $('#pulls').addEventListener('click', async e => {
   const r = e.target.closest('[data-recheck]'), b = e.target.closest('[data-plan]');
