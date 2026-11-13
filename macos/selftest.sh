@@ -5,6 +5,9 @@
 #   stored    localStorage works                 secure     the page is a secure context
 #   clipboard the clipboard API is there         native     the Save-image bridge is there
 #   api       AniList answers a query            card       an AniList picture draws on a share card
+#   login     on My pass (logged out), clicking "Log in with AniList" heads for AniList's authorize page with
+#             Animetro's Mac client (client_id=56211, response_type=token, a one-time state). The app stops that
+#             navigation, so AniList's page never loads and nothing is logged in. loginURL shows where it went.
 # api and card need the internet (AniList); the app does too, so they are not optional.
 # Usage: ./macos/selftest.sh [path/to/Animetro.app]   (default: build/Animetro.app)
 set -e
@@ -27,7 +30,7 @@ get() { plutil -extract "$1" raw -o - "$JSON" 2>/dev/null || true; }
 kind() { plutil -type "$1" "$JSON" 2>/dev/null || true; }
 failed=""
 [ "$(kind ready)" = "string" ] && [ "$(get ready)" = "ok" ] || failed="$failed ready=$(get ready)"
-for check in header stored secure clipboard native api card; do # each must be the JSON value true, not "true" or 1
+for check in header stored secure clipboard native api card login; do # each must be the JSON value true, not "true" or 1
   [ "$(kind "$check")" = "bool" ] && [ "$(get "$check")" = "true" ] || failed="$failed $check"
 done
 if [ -n "$failed" ]; then
