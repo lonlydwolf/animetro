@@ -211,28 +211,40 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     guard selfTest else { return }
-    // ANIMETRO_SELFTEST=1: check the page booted, storage works, AniList answers and card pictures draw, print JSON, quit.
+    // ANIMETRO_SELFTEST=1: run the checks below, print one line of JSON, quit. macos/selftest.sh fails unless every
+    // check passes: ready ("ok": the home page booted), header (the shared header rendered), stored (localStorage
+    // works), api (AniList answers a GraphQL query), card (an AniList picture through the image route draws on a canvas
+    // that can still be exported), secure (a secure context, which clipboard and crypto need), clipboard, native (the
+    // Save-image bridge is there). The rest (page, title, web) is there to read when it fails.
+    // api and card need the network, so each gets a second try before it counts as failed.
     let js = """
       // wait for the page to say it loaded (or failed), up to 15 seconds
       for (let i = 0; i < 60 && !document.documentElement.dataset.ready; i++) await new Promise(r => setTimeout(r, 250));
-      localStorage.setItem('animetro.selftest', '1');
-      const stored = localStorage.getItem('animetro.selftest') === '1';
-      localStorage.removeItem('animetro.selftest');
-      const api = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }), signal: AbortSignal.timeout(8000) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false);
+      let stored = false;
+      try {
+        localStorage.setItem('animetro.selftest', '1');
+        stored = localStorage.getItem('animetro.selftest') === '1';
+        localStorage.removeItem('animetro.selftest');
+      } catch {}
+      const twice = async probe => (await probe()) || (await new Promise(r => setTimeout(r, 1000)), probe());
+      const api = twice(() => fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '{ Media(id: 1) { id } }' }), signal: AbortSignal.timeout(8000) }).then(r => r.json()).then(j => j.data.Media.id === 1).catch(() => false));
       // share cards: an AniList picture through the app's image route must draw on a canvas that can still be saved
-      const card = await new Promise(r => { const i = new Image(); setTimeout(() => r(false), 8000);
+      const card = twice(() => new Promise(r => { const i = new Image(); setTimeout(() => r(false), 8000);
         i.onload = () => { try { const c = document.createElement('canvas'); c.getContext('2d').drawImage(i, 0, 0); c.toDataURL(); r(true); } catch { r(false); } };
         i.onerror = () => r(false);
-        i.src = '__image?u=' + encodeURIComponent('https://s4.anilist.co/file/anilistcdn/media/anime/cover/small/bx1-GCsPm7waJ4kS.png'); });
-      return JSON.stringify({ ready: document.documentElement.dataset.ready || 'timeout', header: !!document.querySelector('header.top'), page: document.querySelector('main')?.innerText.slice(0, 60),
-        stored, api, card, title: document.title, secure: isSecureContext, clipboard: !!navigator.clipboard,
-        native: !!window.webkit?.messageHandlers?.animetro, web: '\(web.path)' });
+        i.src = '__image?u=' + encodeURIComponent('https://s4.anilist.co/file/anilistcdn/media/anime/cover/small/bx1-GCsPm7waJ4kS.png'); }));
+      return JSON.stringify({ ready: document.documentElement.dataset.ready || 'timeout', header: !!document.querySelector('header.top'),
+        stored, api: await api, card: await card, secure: isSecureContext, clipboard: !!navigator.clipboard,
+        native: !!window.webkit?.messageHandlers?.animetro, page: document.querySelector('main')?.innerText.slice(0, 60) ?? null,
+        title: document.title, web });
       """
-    webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { result in
+    webView.callAsyncJavaScript(js, arguments: ["web": web.path], in: nil, in: .page) { result in
       switch result {
       case .success(let value): print(value as? String ?? String(describing: value))
-      case .failure(let error): print("{\"error\": \"\(error.localizedDescription)\"}")
+      case .failure(let error): // still one line of valid JSON, whatever the message says
+        let line = try? JSONSerialization.data(withJSONObject: ["error": error.localizedDescription])
+        print(line.flatMap { String(data: $0, encoding: .utf8) } ?? "{\"error\": \"unknown\"}")
       }
       exit(0)
     }
