@@ -174,10 +174,14 @@ export function card(m, entry, extra = '') {
     </a>`;
 }
 
-export async function cards(el, media, { append = false } = {}) {
+// Fills `el` with cards once the rider's list status is known. Pass `current` to skip the write when the
+// caller's request went stale during that wait; returns whether it wrote.
+export async function cards(el, media, { append = false, current = () => true } = {}) {
   const list = await listStatus(media.map(m => m.id));
+  if (!current()) return false;
   const html = media.map(m => card(m, list.get(m.id))).join('');
   if (append) el.insertAdjacentHTML('beforeend', html); else el.innerHTML = html;
+  return true;
 }
 
 export function toast(msg) {
