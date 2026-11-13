@@ -1,5 +1,5 @@
 import { gql, CARD, TICKETS, tickets, ticketAdult, prefs, me, seenIds } from './api.js';
-import { header, $, esc, qs, cards, fail, adultGate } from './ui.js';
+import { header, $, esc, qs, cards, fail, toast, adultGate } from './ui.js';
 
 header();
 const form = $('#filters');
@@ -73,22 +73,32 @@ function read() {
 }
 
 async function search(more = false) {
-  const my = ++seq;
-  page = more ? page + 1 : 1;
+  const my = ++seq, current = () => my === seq;
+  // the page number is only committed once that page is on screen, so a failed load-more is retried, not skipped
+  const next = more ? page + 1 : 1;
   const { fresh, ...vars } = read();
-  if (!more) $('#results').style.opacity = .4;
-  $('#more').disabled = true;
+  const results = $('#results'), btn = $('#more');
+  if (!more) results.style.opacity = .4;
+  btn.disabled = true;
   try {
     if (fresh) vars.not = await seenIds();
-    const d = await gql(Q, { ...vars, page });
-    if (my !== seq) return;
+    const d = await gql(Q, { ...vars, page: next });
+    if (!current()) return;
     const { media, pageInfo } = d.Page;
-    await cards($('#results'), media, { append: more });
-    if (!more && !media.length) $('#results').innerHTML = '<p class="empty">Nothing matches every filter. Try removing a genre or tag.</p>';
-    $('#more').hidden = !pageInfo.hasNextPage;
-  } catch (e) { fail($('#results'), e); }
-  $('#results').style.opacity = 1;
-  $('#more').disabled = false;
+    // cards() guards its own write, but a newer search can start before this line resumes
+    if (!await cards(results, media, { append: more, current }) || !current()) return;
+    page = next;
+    if (!more && !media.length) results.innerHTML = '<p class="empty">Nothing matches every filter. Try removing a genre or tag.</p>';
+    btn.hidden = !pageInfo.hasNextPage;
+  } catch (e) {
+    if (!current()) return;
+    // a failed load-more keeps what is already shown; the button stays so the rider can try again
+    if (more) toast(`More results didn't load. ${e.message || e}`);
+    else { fail(results, e); btn.hidden = true; }
+  } finally {
+    // a newer search owns the results and the button now
+    if (current()) { results.style.opacity = 1; btn.disabled = false; }
+  }
 }
 
 let timer;
