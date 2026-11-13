@@ -4,8 +4,10 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-14
+
 ### Added
-- Mac app: one-click login. **Log in with AniList** on My pass uses Animetro's own AniList client, so there's no client ID to create or paste. The web version still uses a client ID of your own. The Mac self-test checks the button heads for AniList with that client.
+- Mac app: one-click login. **Log in with AniList** on My pass uses Animetro's own AniList client, so there's no client ID to create or paste. The web version still uses a client ID of your own. The Mac self-test checks that the button heads for AniList with that client.
 - Mac app: a View menu with Zoom In (⌘+), Zoom Out (⌘−) and Actual Size (⌘0). The zoom level is remembered.
 - Mac app: if WebKit's page process crashes, the page reloads itself instead of staying blank (Home after a second crash, then a Try Again / Quit sheet).
 - Home refreshes itself when you come back after a minute or more, or when a countdown reaches zero, so a new episode shows up without a reload.
@@ -41,7 +43,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 - Backup sync: Check works again after a preview with nothing to send, a Simkl rate limit or brief error no longer disconnects you, cancelling a Simkl login stops it, and two tabs take turns writing to Simkl.
 - Watch-order lines stop at exactly 120 stops, and the empty-state note names the Local toggle.
 - Map Rewind counts shows with no start or finish date, using when you last updated them.
-- No sideways scrolling on narrow phones on My pass, Gacha and Backup sync (mostly in Safari and the Mac app), and the "New to me" toggles stay hidden when they should be.
+- No sideways scrolling on narrow phones on My pass, Gacha, Backup sync and Rapid rating (mostly in Safari and the Mac app), and the "New to me" toggles stay hidden when they should be.
 
 ## [1.1.0] - 2026-11-07
 
@@ -141,7 +143,8 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ### Added
 - First version: franchise watch orders as train lines, search, details, Explore, Departures, Gacha and My pass.
 
-[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/lonlydwolf/animetro/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/lonlydwolf/animetro/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lonlydwolf/animetro/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/lonlydwolf/animetro/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/lonlydwolf/animetro/compare/v0.5.0...v1.0.0
