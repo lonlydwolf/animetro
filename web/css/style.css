@@ -576,8 +576,10 @@ button.tag.add:disabled:hover { background: transparent; color: var(--platform);
 .persona h2 { font-size: clamp(1.6rem, 3vw, 2.3rem); margin: 6px 0 10px; }
 .persona p { color: var(--dim); max-width: 46ch; }
 .genre-bars { display: grid; gap: 10px; margin-top: 20px; }
-.connect { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; }
-.connect > div { background: var(--tunnel); border-radius: 18px; padding: 26px; display: grid; gap: 14px; align-content: start; }
+/* minmax(0, …) here and in each card: WebKit sizes a wrapping form by its input and button side by side,
+   which otherwise widens the cards, and the page, on phones */
+.connect { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 36px; }
+.connect > div { background: var(--tunnel); border-radius: 18px; padding: 26px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; }
 .connect ol { margin: 0; padding-left: 20px; color: var(--dim); display: grid; gap: 6px; }
 .connect code { background: var(--night); padding: 2px 8px; border-radius: 6px; color: var(--ink); word-break: break-all; }
 .connect form { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -951,7 +953,7 @@ kbd { font: 700 .7rem var(--body); color: var(--dim); padding: 0 6px; border-rad
   .rank-card { grid-template-columns: 1fr; gap: 14px; }
   main { padding: 0 16px 60px; }
   .rate-card { grid-template-columns: 120px 1fr; gap: 20px; padding: 18px; }
-  .line-layout, .anime-body, .explore, .gacha, .pass-grid, .connect, .transfers { grid-template-columns: 1fr; gap: 28px; }
+  .line-layout, .anime-body, .explore, .gacha, .pass-grid, .connect, .transfers { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .sync-sum { grid-template-columns: repeat(2, 1fr); }
   .rides { grid-template-columns: 1fr; }
   .planner, .filters { position: static; max-height: none; }
