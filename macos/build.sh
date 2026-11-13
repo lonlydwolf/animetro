@@ -18,7 +18,7 @@ if [ -n "$VERSION" ]; then
 fi
 # one binary for both Mac chips
 for arch in arm64 x86_64; do
-  swiftc -O -target "$arch-apple-macos13" macos/Animetro.swift -o "build/Animetro-$arch"
+  swiftc -O -parse-as-library -target "$arch-apple-macos13" macos/Animetro.swift -o "build/Animetro-$arch"
 done
 lipo -create build/Animetro-arm64 build/Animetro-x86_64 -output "$APP/Contents/MacOS/Animetro"
 rm build/Animetro-arm64 build/Animetro-x86_64

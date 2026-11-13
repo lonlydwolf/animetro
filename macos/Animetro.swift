@@ -24,6 +24,8 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
   var fetches: [Int: Fetch] = [:] // by download id; WebKit may stop the page's request first
   // delegate calls arrive on the main queue, like WebKit's, so fetches needs no lock
   lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+  let allows: (URL) -> Bool // which pictures __image may fetch: AniList's; macos/test.sh points it at a local server
+  init(allows: @escaping (URL) -> Bool = Files.allowed) { self.allows = allows }
 
   func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
     let url = task.request.url!
@@ -33,7 +35,8 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
     guard file.path.hasPrefix(web.path + "/"), let data = try? Data(contentsOf: file) else { return reply(task, url, nil, nil) }
     reply(task, url, data, UTType(filenameExtension: file.pathExtension)?.preferredMIMEType)
   }
-  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { // the page went away: stop downloading, reply to nobody
+  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { stop(task) }
+  func stop(_ task: WKURLSchemeTask) { // the page went away: stop downloading, reply to nobody
     guard let (id, fetch) = fetches.first(where: { $0.value.task === task }) else { return }
     fetches[id] = nil
     fetch.download.cancel()
@@ -44,7 +47,7 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
   // itself and serves them from its own origin: animetro://app/__image?u=<https://…anilist.co/…>.
   func image(_ task: WKURLSchemeTask, _ url: URL) {
     guard let u = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "u" })?.value,
-          let remote = URL(string: u), Files.allowed(remote) else { return reply(task, url, nil, nil) }
+          let remote = URL(string: u), allows(remote) else { return reply(task, url, nil, nil) }
     let download = session.dataTask(with: remote)
     fetches[download.taskIdentifier] = Fetch(task, url, download)
     download.resume()
@@ -84,7 +87,7 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
   // a redirect has to stay on AniList too, or the fetch stops there (and the card draws without that picture)
   func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                   newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
-    completionHandler(request.url.map(Files.allowed) == true ? request : nil)
+    completionHandler(request.url.map(allows) == true ? request : nil)
   }
 
   // nil data = 404
@@ -311,8 +314,16 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   }
 }
 
-let app = NSApplication.shared
-let delegate = App()
-app.delegate = delegate
-app.setActivationPolicy(.regular)
-app.run()
+// The app starts here (build.sh compiles with -parse-as-library so @main can be used). macos/test.sh builds this
+// file with ANIMETRO_TESTS and its own main.swift, which runs the tests instead.
+#if !ANIMETRO_TESTS
+@main enum Main {
+  static let delegate = App() // NSApplication holds its delegate weakly
+  static func main() {
+    let app = NSApplication.shared
+    app.delegate = delegate
+    app.setActivationPolicy(.regular)
+    app.run()
+  }
+}
+#endif

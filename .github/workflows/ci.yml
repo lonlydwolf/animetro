@@ -54,6 +54,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Swift unit tests (image route limits, against a local server)
+        run: ./macos/test.sh
       - run: ./macos/build.sh
       - name: One binary for Apple Silicon and Intel
         run: lipo -info build/Animetro.app/Contents/MacOS/Animetro | grep -Eq "x86_64 arm64|arm64 x86_64"
