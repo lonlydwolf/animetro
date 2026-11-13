@@ -1,4 +1,4 @@
-import { gql, me, UnknownUser, title, CARD, saveEntries, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
+import { gql, me, UnknownUser, title, CARD, clientId, setClientId, loginUrl, useUsername, logout, builtInLogin, inApp, loginRejected, prefs } from './api.js';
 import { header, $, esc, toast, cover, tint, safeUrl, nsfw, safeColor } from './ui.js';
 import { ride, TIERS } from './score.js';
 import { syncOn, simklConnected } from './simkl.js';
@@ -6,6 +6,7 @@ import { chime } from './chime.js';
 import { passCard, showCard } from './share.js';
 import { picker } from './themes.js';
 import { lock } from './lock.js';
+import { saveChecked, describeEntry, notSaved } from './plan.js';
 
 header();
 const page = $('#page');
@@ -170,27 +171,38 @@ function renderCurrent(user, list) {
         ${user.canWrite && (!total || progress < total) ? `<button class="tag add" data-plus="${m.id}" data-total="${total}" data-final="${final}">+1</button>` : ''}
       </div>`;
   }).join('');
-  // AniList's answer is the saved state: the next +1 builds on it, never on what the page happens to show
-  const saved = new Map(list.map(({ progress, media: m }) => [m.id, progress]));
+  // What each card shows (these are your Watching entries). A +1 is saved only if AniList still has the entry like
+  // that (saveChecked), and AniList's answer, saved or changed elsewhere, is what the card shows next.
+  const shown = new Map(list.map(({ progress, media: m }) => [m.id, { status: 'CURRENT', progress }]));
   const once = lock(); // one save per show at a time
+  const draw = (b, p, total) => {
+    const journey = b.closest('.journey');
+    journey.querySelector('[data-progress]').textContent = p;
+    journey.querySelector('.bar i').style.width = `${total ? Math.min(100, (p / total) * 100) : 0}%`;
+    if (total && p >= total) b.remove(); // caught up with what's out
+  };
   el.addEventListener('click', e => {
     const b = e.target.closest('[data-plus]');
     if (!b) return;
     const id = +b.dataset.plus;
     once(id, async () => {
       b.disabled = true;
-      const journey = b.closest('.journey'), total = +b.dataset.total, final = +b.dataset.final;
-      const progress = saved.get(id) + 1, done = final > 0 && progress >= final;
-      try {
-        const now = (await saveEntries([{ mediaId: id, progress, ...(done ? { status: 'COMPLETED' } : {}) }])).m0;
-        const p = now.progress ?? progress, finished = now.status === 'COMPLETED';
-        saved.set(id, p);
-        journey.querySelector('[data-progress]').textContent = p;
-        journey.querySelector('.bar i').style.width = `${total ? Math.min(100, (p / total) * 100) : 0}%`;
-        if (total && p >= total) b.remove(); // caught up with what's out
+      const total = +b.dataset.total, final = +b.dataset.final, seen = shown.get(id);
+      const progress = (seen.progress ?? 0) + 1, done = final > 0 && progress >= final;
+      const r = await saveChecked([{ id, seen, change: { progress, ...(done ? { status: 'COMPLETED' } : {}) } }]);
+      if (r.saved.has(id)) {
+        const now = r.saved.get(id), p = now.progress ?? progress, finished = now.status === 'COMPLETED';
+        shown.set(id, { status: now.status, progress: p });
+        draw(b, p, total);
         chime(finished ? 'done' : 'tick');
         toast(finished ? 'Completed. End of the line!' : `Episode ${p} logged`);
-      } catch (err) { toast(err.message); }
+      } else if (r.changed.has(id)) {
+        // logged somewhere else meanwhile: show it as it is now, and log nothing
+        const now = r.changed.get(id);
+        if (now) { shown.set(id, now); draw(b, now.progress ?? 0, total); }
+        if (!now || now.status !== 'CURRENT') b.remove(); // finished, paused or removed elsewhere: no +1 here
+        toast(`Changed somewhere else: ${describeEntry(now)} now. Nothing was logged.`);
+      } else toast(notSaved(r));
       b.disabled = false;
     });
   });

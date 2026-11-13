@@ -1,10 +1,11 @@
-import { gql, me, title, saveEntries, prefs } from './api.js';
+import { gql, me, title, prefs } from './api.js';
 import { header, $, esc, countdown, minutes, toast, fail, cover, tint, nsfw } from './ui.js';
 import { remaining, fit, finishes, logged } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 import { recapOn, setRecap, ago } from './recap.js';
 import { holdFocus, refocus } from './focus.js';
 import { refreshes } from './refresh.js';
+import { saveChecked, describeEntry, notSaved } from './plan.js';
 
 header();
 const page = $('#page');
@@ -188,8 +189,9 @@ page.addEventListener('click', async ev => {
     const finished = done || finishes(progress, m), button = plus || done, hold = holdFocus(document, page, button);
     let saved = false;
     button.disabled = true;
-    try {
-      await saveEntries([{ mediaId: m.id, progress, ...(finished ? { status: 'COMPLETED' } : {}) }]);
+    // the card shows your entry as it was when the page loaded: saved only if AniList still has it like that
+    const r = await saveChecked([{ id: m.id, seen: e, change: { progress, ...(finished ? { status: 'COMPLETED' } : {}) } }]);
+    if (r.saved.has(m.id)) {
       e.progress = progress;
       if (finished) {
         hold.drop();
@@ -203,7 +205,14 @@ page.addEventListener('click', async ev => {
       chime('tick');
       toast(`Episode ${progress} logged`);
       saved = true;
-    } catch (err) { toast(err.message); }
+    } else if (r.changed.has(m.id)) {
+      // logged somewhere else meanwhile: show it as it is now, and log nothing
+      const now = r.changed.get(m.id);
+      if (now?.status === 'CURRENT' || now?.status === 'REPEATING') Object.assign(e, { status: now.status, progress: now.progress ?? 0 });
+      else riding = riding.filter(x => x !== e);
+      toast(`${title(m)} changed somewhere else: ${describeEntry(now)} now. Nothing was logged.`);
+      saved = true; // redraw from it
+    } else toast(notSaved(r));
     // read focus just before the redraw; the clicked control falls back to the nearest one left on its card
     // (an airing show that just caught up loses its +1)
     const at = `.ride[data-id="${m.id}"]`;
