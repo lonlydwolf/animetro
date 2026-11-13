@@ -197,17 +197,28 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   // Messages from the page. "busy": how many scores Rapid rating is still saving. "look": the livery's mode and page color, so the title bar and window match (and
   // the next launch opens in them). "save": a share card as base64 PNG, saved through a normal Save dialog
   // (a web view can't download files on its own).
+  // Only Animetro's own pages may ask: the main frame, served from animetro://app. AniList's login page also loads
+  // in this window, and any frame can reach the handler, so everything else is ignored, as is any odd-shaped message.
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard let body = message.body as? [String: Any] else { return }
-    if body["type"] as? String == "look", let mode = body["mode"] as? String, let bg = body["bg"] as? String {
+    let origin = message.frameInfo.securityOrigin
+    guard message.frameInfo.isMainFrame, origin.protocol == "animetro", origin.host == "app",
+          let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+    if type == "look", let mode = body["mode"] as? String, mode == "light" || mode == "dark",
+       let bg = body["bg"] as? String, App.isHexColor(bg) {
       look(mode: mode, bg: bg)
       UserDefaults.standard.set(mode, forKey: "mode")
       UserDefaults.standard.set(bg, forKey: "bg")
       return
     }
-    if body["type"] as? String == "busy" { savingScores = body["n"] as? Int ?? 0; return }
-    guard body["type"] as? String == "save",
-          let name = body["name"] as? String, let b64 = body["data"] as? String, let data = Data(base64Encoded: b64) else { return }
+    if type == "busy" {
+      guard let n = body["n"] as? Int, (0...10_000).contains(n) else { return }
+      savingScores = n
+      return
+    }
+    // a share card is a 1200×675 PNG, a few hundred KB; anything near 16 MB of base64 is not one
+    guard type == "save", let name = body["name"] as? String, (1...255).contains(name.count),
+          let b64 = body["data"] as? String, b64.utf8.count <= 16 << 20, let data = Data(base64Encoded: b64),
+          data.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) else { return } // PNG signature
     let panel = NSSavePanel()
     panel.nameFieldStringValue = name
     panel.allowedContentTypes = [.png]
@@ -217,9 +228,12 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     }
   }
 
+  static func isHexColor(_ s: String) -> Bool {
+    s.utf8.count == 7 && s.hasPrefix("#") && s.dropFirst().allSatisfy(\.isHexDigit)
+  }
   func look(mode: String, bg: String) {
     window.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
-    guard bg.count == 7, bg.hasPrefix("#"), let v = Int(bg.dropFirst(), radix: 16) else { return }
+    guard App.isHexColor(bg), let v = Int(bg.dropFirst(), radix: 16) else { return }
     window.backgroundColor = NSColor(red: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
   }
 
