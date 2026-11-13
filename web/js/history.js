@@ -1,5 +1,5 @@
 import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, minutes, fail, nsfw, cover, tint } from './ui.js';
+import { header, $, esc, minutes, fail, toast, nsfw, cover, tint } from './ui.js';
 import { describe, dayKey, streak } from './journal.js';
 
 header();
@@ -14,11 +14,16 @@ const Q = `query($u:Int,$p:Int){ Page(page:$p,perPage:50){ pageInfo{ hasNextPage
 async function loadPage() {
   if (!more || loading) return;
   loading = true;
-  // fresh: MAL-Sync and other apps log new episodes all the time
-  const d = await gql(Q, { u: user.id, p: ++pageNo }, { fresh: true });
-  more = d.Page.pageInfo.hasNextPage;
-  acts.push(...d.Page.activities.filter(a => a?.media && (!a.media.isAdult || prefs.adult())));
-  loading = false;
+  try {
+    // fresh: MAL-Sync and other apps log new episodes all the time
+    const d = await gql(Q, { u: user.id, p: pageNo + 1 }, { fresh: true });
+    // only count the page once it has arrived, so a failed request is retried rather than skipped
+    pageNo++;
+    more = d.Page.pageInfo.hasNextPage;
+    acts.push(...d.Page.activities.filter(a => a?.media && (!a.media.isAdult || prefs.adult())));
+  } finally {
+    loading = false;
+  }
 }
 
 async function boot() {
@@ -73,10 +78,18 @@ function render(history) {
 
 async function older() {
   if (!more || loading) return;
-  $('#more').disabled = true;
-  try { await loadPage(); timeline(); } catch (e) { fail($('#log'), e); }
-  $('#more').disabled = false;
-  $('#more').hidden = !more;
+  const btn = $('#more');
+  btn.disabled = true;
+  try {
+    await loadPage();
+    timeline();
+  } catch (e) {
+    // keep what is already on screen; the button stays so the rider can try again
+    toast(`Older rides didn't load. ${e.message || e}`);
+  } finally {
+    btn.disabled = false;
+    btn.hidden = !more;
+  }
 }
 
 // 26 weeks of days, Sunday at the top, like a commuter's punch card
