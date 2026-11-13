@@ -45,24 +45,52 @@ export const clientId = () => (builtInLogin() ? APP.clientId : store.get(KEY.cli
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---- rate limit ----------------------------------------------------------
-// AniList tells us how many requests are left this minute (X-RateLimit-Remaining, currently 30/min).
-// Near zero we pause until the window resets instead of getting refused.
-let left = Infinity, resetAt = 0;
-const MARGIN = 3; // leave room for requests already in flight
+// AniList says how many requests are left in this window (X-RateLimit-Remaining, out of X-RateLimit-Limit,
+// which it lowers when it's busy) and, once you're out, when the window resets (X-RateLimit-Reset, unix
+// seconds). Two reasons to wait, one place that waits (gate()), once per request:
+// - refused (429): a hard deadline, pausedUntil. Only ever moves later: a success from a request that was
+//   already in flight says nothing about the refusal, so it can't lift it.
+// - running low: left/resetAt, refreshed by every response.
+// Retry-After is only a fallback, since AniList doesn't expose it to browsers (CORS).
+let left = Infinity, limit = 0, resetAt = 0, pausedUntil = 0;
+const WINDOW = 60_000; // AniList counts per minute
+const MIN_WAIT = 1_000, MAX_WAIT = 65_000, FALLBACK_WAIT = 15_000, RETRIES = 3;
+// room for requests already in flight: a tenth of the limit, whatever AniList currently says it is
+const margin = () => (limit ? Math.max(1, Math.ceil(limit / 10)) : 3);
+const num = (res, name) => { const v = res.headers.get(name); return v == null || v.trim() === '' || !isFinite(v) ? null : +v; };
+const bound = ms => Math.min(Math.max(ms, MIN_WAIT), MAX_WAIT);
+// ms until X-RateLimit-Reset, or null if it's missing or already past
+function untilReset(res) {
+  const reset = num(res, 'X-RateLimit-Reset');
+  const ms = reset == null ? 0 : reset * 1000 - Date.now();
+  return ms > 0 ? bound(ms) : null;
+}
+const waitUntil = () => Math.max(pausedUntil, left <= margin() ? resetAt : 0);
 async function gate() {
-  if (left > MARGIN || Date.now() >= resetAt) return;
-  const wait = resetAt - Date.now();
-  dispatchEvent(new CustomEvent('ratelimit', { detail: Math.ceil(wait / 1000) }));
-  await sleep(wait);
-  left = Infinity;
+  // a loop: a 429 that lands during the wait can move the deadline later
+  for (let until = waitUntil(); Date.now() < until; until = waitUntil()) {
+    dispatchEvent(new CustomEvent('ratelimit', { detail: Math.ceil((until - Date.now()) / 1000) }));
+    await sleep(until - Date.now());
+  }
+  if (left <= margin()) left = Infinity; // new window; the next response says how many are really left
 }
 function track(res) {
-  const n = res.headers.get('X-RateLimit-Remaining');
+  const lim = num(res, 'X-RateLimit-Limit');
+  if (lim > 0) limit = lim;
+  const n = num(res, 'X-RateLimit-Remaining');
+  const reset = untilReset(res);
+  if (res.status === 429) {
+    // refused: pause everything until the reset, however we can learn it
+    const after = num(res, 'Retry-After');
+    pausedUntil = Math.max(pausedUntil, Date.now() + (reset ?? (after > 0 ? bound(after * 1000) : FALLBACK_WAIT)));
+    return;
+  }
   if (n == null) return;
-  left = +n;
-  const reset = +res.headers.get('X-RateLimit-Reset');
-  // ponytail: AniList only sends Reset when you're out, so otherwise assume a full minute
-  if (left <= MARGIN && Date.now() >= resetAt) resetAt = reset ? reset * 1000 : Date.now() + 60_000;
+  left = n;
+  if (left > margin()) return;
+  // running low. AniList usually only sends Reset once you're out; without it, assume the window ends in a minute
+  if (reset != null) resetAt = Date.now() + reset;
+  else if (Date.now() >= resetAt) resetAt = Date.now() + WINDOW;
 }
 
 // ---- short-lived cache ------------------------------------------------------
@@ -91,7 +119,7 @@ const cache = {
 const PERSONAL = /\b(Viewer|mutation|mediaList|MediaListCollection|User)\b/;
 
 // fresh: don't answer from the cache. remember: false = don't put the answer in it either.
-export async function gql(query, variables = {}, { fresh = false, remember = true, tries = 3 } = {}) {
+export async function gql(query, variables = {}, { fresh = false, remember = true, tries = RETRIES } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
   const key = digest(query + JSON.stringify(variables) + (personal ? token() || store.get(KEY.user) || '' : ''));
@@ -112,11 +140,9 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
     throw new Error("Couldn't reach AniList. Check your connection and try again.");
   }
   track(res);
-  if (res.status === 429 && tries) {
-    const wait = Math.min(+res.headers.get('Retry-After') || 15, 65);
-    dispatchEvent(new CustomEvent('ratelimit', { detail: wait }));
-    await sleep(wait * 1000);
-    return gql(query, variables, { fresh, remember, tries: tries - 1 });
+  if (res.status === 429) { // track() set the pause; the retry's own gate() waits it out, so waits never stack
+    if (tries > 0) return gql(query, variables, { fresh, remember, tries: tries - 1 });
+    throw new Error('AniList is turning requests away right now. Wait a minute and try again.');
   }
   const json = await res.json().catch(() => ({}));
   if (json.errors?.some(e => e.status === 401 || /invalid token/i.test(e.message))) {
