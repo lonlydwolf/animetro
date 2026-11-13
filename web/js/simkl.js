@@ -4,7 +4,7 @@
 // Docs: https://api.simkl.org (rules we follow: 1 write per second, batched, one request at a time).
 const API = 'https://api.simkl.com';
 const APP = 'app-name=animetro&app-version=1.0';
-const KEY = { on: 'animetro.sync', client: 'animetro.simkl.client', token: 'animetro.simkl.token' };
+const KEY = { on: 'animetro.sync', client: 'animetro.simkl.client', token: 'animetro.simkl.token', wrote: 'animetro.simkl.lastWrite' };
 const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
 const cancelled = () => new Error('Cancelled.');
@@ -71,13 +71,33 @@ export async function waitForLogin(code, signal) {
   throw new Error('The code expired. Try again.');
 }
 
+// ---- one writer, one renewer, across tabs ----------------------------------
+// Simkl's one-write-a-second limit is per user, and a renewal invalidates the previous access token, so writes
+// and renewals have to take turns across every open tab, not just within this one. Web Locks (Safari, WKWebView,
+// Chromium, Firefox) do that; without them, calls at least take turns within this tab.
+const LOCK = { write: 'animetro.simkl.write', renew: 'animetro.simkl.renew' };
+const turns = new Map();
+function exclusive(name, fn) {
+  const locks = globalThis.navigator?.locks;
+  if (locks?.request) return locks.request(name, () => fn());
+  const run = (turns.get(name) || Promise.resolve()).then(() => fn());
+  turns.set(name, run.catch(() => {}));
+  return run;
+}
+
 // Access tokens last 7 days; the refresh token gets a new one for 180 days. It doesn't change itself (Simkl's
 // refresh tokens don't rotate), but each renewal replaces the access token, so the previous one stops working.
-// force: Simkl just rejected the access token (401), so renew it even if it isn't due.
-async function access(force = false) {
+// stale: the access token Simkl just rejected (401). Renew if that's still the stored one, even if not due.
+const due = (t, stale) => (stale ? t.access === stale : Date.now() >= t.expires - 864e5);
+async function access(stale) {
   const t = tokens();
   if (!t) throw new Error('Connect Simkl first.');
-  if (!force && Date.now() < t.expires - 864e5) return t.access;
+  return due(t, stale) ? exclusive(LOCK.renew, () => renew(stale)) : t.access;
+}
+async function renew(stale) {
+  const t = tokens(); // re-read under the lock: another tab or call may have renewed while we waited
+  if (!t) throw new Error('Connect Simkl first.');
+  if (!due(t, stale)) return t.access;
   const client = simklClient();
   const r = await oauth('/oauth2/token', { grant_type: 'refresh_token', refresh_token: t.refresh }); // throws, connected, if unreachable
   // Checked after the request, right before saving: never bring back a login that was dropped meanwhile,
@@ -89,29 +109,55 @@ async function access(force = false) {
   if (r.ok) { keep(r.json); return r.json.access_token; }
   // Only a rejected refresh token means the login is gone. A busy or broken Simkl (5xx, 429) keeps it.
   if (r.status === 400 || r.status === 401) { simklDisconnect(); throw new Error('Your Simkl login ran out. Connect again.'); }
-  if (!force && Date.now() < t.expires) return t.access; // renewal was early anyway; the current token still works
+  if (!stale && Date.now() < t.expires) return t.access; // renewal was early anyway; the current token still works
   throw new Error(`Simkl couldn't renew your login just now (it answered ${r.status}). You're still connected; try again in a minute.`);
 }
 
+// Simkl allows one write per second per app and user, and suspends apps that go faster. Both run holding the
+// write lock: pace() waits out the gap since the last write, wrote() records a write the moment it goes out.
+// The time is shared through storage so the next tab's write waits for it too.
+const GAP = 1100;
 let lastWrite = 0;
+async function pace() {
+  const last = Math.max(lastWrite, +get(KEY.wrote) || 0);
+  const gap = Math.min(GAP, last + GAP - Date.now()); // capped, so a bogus stored time can't stall writes
+  if (gap > 0) await sleep(gap);
+}
+const wrote = () => { lastWrite = Date.now(); put(KEY.wrote, String(lastWrite)); };
+
+// The token as stored, never renewed. Used after a 429: same token the 429 answered, unless another tab
+// renewed it during the wait, in which case theirs is the live one.
+const held = () => {
+  const t = tokens();
+  if (!t) throw new Error('Connect Simkl first.');
+  return t.access;
+};
+
 // One retry for each kind of trouble: a 401 renews the token once, a 429 waits once. Waiting never renews:
-// the retry after a 429 sends the very token the 429 answered (token), without asking access() again.
-async function call(path, body, { renewed = false, waited = false, renew = false, token } = {}) {
-  if (body) { // Simkl allows one write per second per app and user, and suspends apps that go faster
-    const gap = lastWrite + 1100 - Date.now();
-    if (gap > 0) await sleep(gap);
-    lastWrite = Date.now();
-  }
-  const auth = token ?? await access(renew);
-  const res = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}client_id=${encodeURIComponent(simklClient())}&${APP}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { Authorization: 'Bearer ' + auth, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  }).catch(() => { throw new Error("Couldn't reach Simkl. Check your connection."); });
-  if (res.status === 401 && !renewed) return call(path, body, { renewed: true, waited, renew: true });
+// only a 401 asks for a renewal.
+async function call(path, body, { renewed = false, waited = false, stale, hold = false } = {}) {
+  const attempt = async () => {
+    // 1. credentials, renewing if due (may wait for the renewal lock and the network)
+    const token = hold ? held() : await access(stale);
+    // 2. the write gap, timed from now, after any renewal, so a slow renewal can't use up the wait
+    if (body) await pace();
+    // 3. check again after the last wait: a disconnect or turn-off during any of them sends nothing. From here
+    // on nothing awaits until fetch(), so the write time is recorded the moment the request goes out.
+    const client = simklClient();
+    if (!syncOn() || !client || tokens()?.access !== token) throw new Error('Connect Simkl first.');
+    if (body) wrote();
+    const res = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}client_id=${encodeURIComponent(client)}&${APP}`, {
+      method: body ? 'POST' : 'GET',
+      headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    }).catch(() => { throw new Error("Couldn't reach Simkl. Check your connection."); });
+    return { res, token };
+  };
+  const { res, token } = await (body ? exclusive(LOCK.write, attempt) : attempt());
+  if (res.status === 401 && !renewed) return call(path, body, { renewed: true, waited, stale: token });
   if (res.status === 429 && !waited) {
     await sleep(Math.min(+res.headers.get('Retry-After') || 10, 60) * 1000);
-    return call(path, body, { renewed, waited: true, token: auth });
+    return call(path, body, { renewed, waited: true, hold: true });
   }
   if (!res.ok) throw new Error(`Simkl answered ${res.status}. Nothing after this point was sent.`);
   return res.json().catch(() => ({}));
