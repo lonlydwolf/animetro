@@ -14,9 +14,16 @@ let web = (ProcessInfo.processInfo.environment["ANIMETRO_WEB"].map { URL(fileURL
 let home = URL(string: "animetro://app/index.html")!
 
 // Serves files from Contents/Resources/web for animetro://app/<path>.
-final class Files: NSObject, WKURLSchemeHandler, URLSessionTaskDelegate {
-  var live = Set<ObjectIdentifier>() // image fetches still waiting; WebKit may cancel them first
-  lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
+  // An AniList picture on its way in, for the page's request that asked for it.
+  final class Fetch {
+    let task: WKURLSchemeTask, url: URL, download: URLSessionDataTask
+    var data = Data(), type = ""
+    init(_ task: WKURLSchemeTask, _ url: URL, _ download: URLSessionDataTask) { (self.task, self.url, self.download) = (task, url, download) }
+  }
+  var fetches: [Int: Fetch] = [:] // by download id; WebKit may stop the page's request first
+  // delegate calls arrive on the main queue, like WebKit's, so fetches needs no lock
+  lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
 
   func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
     let url = task.request.url!
@@ -26,7 +33,11 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionTaskDelegate {
     guard file.path.hasPrefix(web.path + "/"), let data = try? Data(contentsOf: file) else { return reply(task, url, nil, nil) }
     reply(task, url, data, UTType(filenameExtension: file.pathExtension)?.preferredMIMEType)
   }
-  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { live.remove(ObjectIdentifier(task)) }
+  func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { // the page went away: stop downloading, reply to nobody
+    guard let (id, fetch) = fetches.first(where: { $0.value.task === task }) else { return }
+    fetches[id] = nil
+    fetch.download.cancel()
+  }
 
   // Share cards draw AniList pictures on a canvas, which needs CORS, and AniList's image server answers the
   // animetro:// origin with "Access-Control-Allow-Origin: null", so WebKit drops them. The app fetches them
@@ -34,16 +45,36 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionTaskDelegate {
   func image(_ task: WKURLSchemeTask, _ url: URL) {
     guard let u = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "u" })?.value,
           let remote = URL(string: u), Files.allowed(remote) else { return reply(task, url, nil, nil) }
-    let id = ObjectIdentifier(task)
-    live.insert(id)
-    session.dataTask(with: remote) { data, response, _ in
-      DispatchQueue.main.async {
-        guard self.live.remove(id) != nil else { return } // the page went away; the task is already stopped
-        let type = response?.mimeType ?? ""
-        let ok = (response as? HTTPURLResponse)?.statusCode == 200 && type.hasPrefix("image/")
-        self.reply(task, url, ok ? data : nil, type)
-      }
-    }.resume()
+    let download = session.dataTask(with: remote)
+    fetches[download.taskIdentifier] = Fetch(task, url, download)
+    download.resume()
+  }
+  // Pictures only, never documents: an SVG (or anything else) served from the app's own origin could carry script.
+  static let raster: Set<String> = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]
+  // AniList's largest banners are a few MB. Checked as the bytes arrive, so a bigger answer is never held in full.
+  static let maxImage = 25 << 20
+
+  // Headers first: anything but a 200 raster picture of a declared size within the limit stops here, before its body.
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                  completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+    guard let fetch = fetches[dataTask.taskIdentifier] else { return completionHandler(.cancel) }
+    fetch.type = response.mimeType?.lowercased() ?? ""
+    let ok = (response as? HTTPURLResponse)?.statusCode == 200 && Files.raster.contains(fetch.type)
+      && response.expectedContentLength <= Files.maxImage // -1 when the server doesn't say
+    completionHandler(ok ? .allow : .cancel) // .cancel ends in didCompleteWithError, which answers 404
+  }
+  // Then the body, which may not say its size (or may lie): stop as soon as it passes the limit.
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+    guard let fetch = fetches[dataTask.taskIdentifier] else { return dataTask.cancel() }
+    guard fetch.data.count + data.count <= Files.maxImage else {
+      fetch.data = Data()
+      return dataTask.cancel()
+    }
+    fetch.data.append(data)
+  }
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    guard let fetch = fetches.removeValue(forKey: task.taskIdentifier) else { return } // stopped by the page; nobody to answer
+    reply(fetch.task, fetch.url, error == nil ? fetch.data : nil, fetch.type) // an error includes our own cancel
   }
 
   static func allowed(_ url: URL) -> Bool {
