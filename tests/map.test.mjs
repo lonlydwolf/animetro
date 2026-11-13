@@ -84,3 +84,17 @@ test('rewind starts at the earliest start or finish, and undated announced seque
   assert.deepEqual(rewind(ls, 2021).lines[0].stations.map(s => s.state), ['done', 'soon']);
   assert.ok(rewind(ls, 2021).lines[0].complete, 'still end to end, as it is at Now');
 });
+
+test('firstYear falls back to when an entry was last changed when it has no start or finish year', async () => {
+  const { firstYear } = await import('../web/js/map.js');
+  const at = y => Date.UTC(y, 5, 15) / 1000; // mid-year, so the local-time year is the same in every time zone
+  const done = (id, extra) => ({ status: 'COMPLETED', progress: 12, ...extra, media: md(id, 2000 + id) });
+  // every date missing except updatedAt: the slider still gets a start year
+  assert.equal(firstYear(franchises([done(1, { updatedAt: at(2020) }), done(2, { startedAt: {}, completedAt: { year: null }, updatedAt: at(2017) })])), 2017);
+  // mixed: an undated entry changed earlier than every dated one pulls the start back
+  assert.equal(firstYear(franchises([done(1, { startedAt: { year: 2019 } }), done(2, { completedAt: { year: 2021 } }), done(3, { updatedAt: at(2016) })])), 2016);
+  // mixed: a real start/finish year wins over a later updatedAt on the same entry, and over later undated entries
+  assert.equal(firstYear(franchises([done(1, { completedAt: { year: 2014 }, updatedAt: at(2022) }), done(2, { updatedAt: at(2018) })])), 2014);
+  // nothing dated at all: no slider
+  assert.equal(firstYear(franchises([done(1, {}), done(2, { startedAt: null, completedAt: null })])), null);
+});
