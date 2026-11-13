@@ -75,7 +75,7 @@ export function header() {
     $('.pass-avatar', el).classList.add('on');
     $('.pass-name', el).textContent = u.name;
   }, () => {}); // who you are couldn't be read: the badge stays plain "My pass"; the page itself says why
-  addEventListener('ratelimit', e => toast(`Pausing ${e.detail}s to stay under AniList's limit of 30 requests a minute…`));
+  addEventListener('ratelimit', e => toast(`Pausing ${e.detail}s to stay under AniList's rate limit…`));
 }
 
 // The 18+ switch. A native <dialog>; saving reloads so every query picks up the new setting.
@@ -110,7 +110,7 @@ export function adultGate() {
 }
 export const nsfw = m => (m?.isAdult && prefs.blur() ? ' nsfw' : '');
 
-// Typeahead that searches English + romaji titles. Debounced: we only get ~30 requests a minute.
+// Typeahead that searches English + romaji titles. Debounced: AniList allows only so many requests a minute.
 // Enter picks the highlighted suggestion; with none (yet) it hands the typed text to `onQuery`, which by
 // default opens line.html?q=, the page that finds the best match for a typed title.
 export function searchBox(input, onPick, onQuery = q => (location.href = `line.html?q=${encodeURIComponent(q)}`)) {
