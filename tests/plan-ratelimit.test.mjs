@@ -5,7 +5,7 @@ import './setup.mjs';
 import { test, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { logout } from '../web/js/api.js';
-import { planBoard } from '../web/js/plan.js';
+import { planBoard, addToPlanning, planReport } from '../web/js/plan.js';
 
 const PROFILE = { id: 42, name: 'Audit', avatar: null, bannerImage: null, siteUrl: null, options: null };
 const json = (body, init) => new Response(JSON.stringify(body), init);
@@ -88,4 +88,29 @@ test('once AniList has room again, + Planning checks and saves exactly once', as
   assert.equal(writes.length, 2); // the refused one and the one the second click sent after its own check
   assert.equal(lookups.length, 2);
   assert.equal(board.slot(104, true), '<span class="tag s-PLANNING">Planning</span>');
+});
+
+// Line's "Add N to Planning" (addToPlanning) through the real gql() and saveEntries().
+test('Line: a show marked Completed after the line loaded is not overwritten; the rest are added in one save', async () => {
+  const list = new Map([[202, 'COMPLETED']]); // marked Completed in another tab after the line was drawn
+  anilist = {
+    lookup: () => json({ data: { Viewer: { id: 42 }, p0: { mediaList: [...list].map(([mediaId, status]) => ({ mediaId, status, progress: 12 })) } } }),
+    save: () => json({ data: { m0: { mediaId: 201, status: 'PLANNING', progress: 0 }, m1: { mediaId: 203, status: 'PLANNING', progress: 0 } } }),
+  };
+  const r = await addToPlanning([201, 202, 203]);
+  assert.equal(writes.length, 1);
+  assert.match(writes[0].query, /m0: SaveMediaListEntry\(mediaId:201,status:PLANNING\).*m1: SaveMediaListEntry\(mediaId:203,status:PLANNING\)/);
+  assert.doesNotMatch(writes[0].query, /mediaId:202/);
+  assert.equal(r.changed.get(202).status, 'COMPLETED');
+  assert.equal(planReport(r, 3), 'Added 2 to Planning; 1 was already on your list.');
+});
+
+test('Line: a refused batch (429) saves nothing, is never resent, and says AniList is busy', async () => {
+  anilist = { lookup: () => json({ data: { Viewer: { id: 42 }, p0: { mediaList: [] } } }), save: () => refused() };
+  const r = await addToPlanning([211, 212]);
+  later(65_000);
+  assert.equal(writes.length, 1);
+  assert.equal(r.rateLimited, true);
+  assert.equal(r.saved.size, 0);
+  assert.equal(planReport(r, 2), 'AniList is busy right now, so nothing was added. Try again in a moment.');
 });
