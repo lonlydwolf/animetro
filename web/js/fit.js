@@ -9,6 +9,13 @@ export const epMinutes = m => m.duration || (m.format === 'MOVIE' ? 100 : 24);
 // (Episodes aired so far is not the end: catching up with an airing show must not mark it Completed.)
 export const finishes = (progress, m) => !!m?.episodes && progress >= m.episodes;
 
+// The progress a Home action saves. +1 is the next episode, or null (save nothing) past a known final count;
+// Mark completed keeps what you've watched, brought down to the final count if a list somehow went past it.
+export const logged = (progress, m, complete = false) => {
+  const total = m?.episodes || Infinity;
+  return complete ? Math.min(progress, total) : progress + 1 > total ? null : progress + 1;
+};
+
 // What's left of a show you're watching: episodes out but unwatched, and whether watching them all finishes it.
 // airedCount() decides what is out. When it can't tell (airing with no schedule on AniList), out is null and nothing
 // counts as ready: the show is neither "all watched" nor "every episode ready", and logging stays open up to the final

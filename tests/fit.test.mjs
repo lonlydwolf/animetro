@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fit, remaining, finishes } from '../web/js/fit.js';
+import { fit, remaining, finishes, logged } from '../web/js/fit.js';
 
 const show = (id, extra) => ({ id, format: 'TV', status: 'FINISHED', episodes: 12, duration: 24, averageScore: 70, ...extra });
 const airing = show(2, { status: 'RELEASING', episodes: null, nextAiringEpisode: { episode: 6 } }); // 5 episodes out
@@ -67,4 +67,14 @@ test('an airing show with a schedule: what has aired is out, capped at the final
   assert.deepEqual(remaining({ progress: 3, media: airing }).out, 5);
   assert.equal(remaining({ progress: 3, media: { ...airing, episodes: 12 } }).left, 2);
   assert.equal(remaining({ progress: 0, media: show(10, { format: 'MOVIE', episodes: null }) }).left, 1, 'a finished movie with no count is one sitting');
+});
+
+test('what a Home action saves: +1 never passes the final count; completing clamps to it', () => {
+  assert.equal(logged(11, { episodes: 12 }), 12);
+  assert.equal(logged(12, { episodes: 12 }), null, 'nothing past the final episode');
+  assert.equal(logged(13, { episodes: 12 }), null);
+  assert.equal(logged(40, { episodes: null }), 41, 'no known end');
+  assert.equal(logged(13, { episodes: 12 }, true), 12, 'an entry already past the end still completes, at the final count');
+  assert.equal(logged(12, { episodes: 12 }, true), 12);
+  assert.equal(logged(7, { episodes: null }, true), 7);
 });
