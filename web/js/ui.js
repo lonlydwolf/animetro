@@ -222,6 +222,10 @@ export function countdown(sec) {
   return `${m}m ${String(s).padStart(2, '0')}s`;
 }
 
+// Pages with public content (a show, a line) still render when who you are can't be read; this says why
+// your list, progress and save buttons are missing.
+export const listNote = err => `<span class="hint list-note" role="status">Couldn't load your list (${esc(String(err.message || err).replace(/\.$/, ''))}). <a href="pass.html">My pass</a></span>`;
+
 export const fail = (el, err) => {
   el.innerHTML = `<p class="empty">${esc(err.message || err)}</p>`;
 };
