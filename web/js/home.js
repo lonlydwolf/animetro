@@ -4,12 +4,14 @@ import { remaining, fit, finishes, logged } from './fit.js';
 import { chime, soundOn, setSound } from './chime.js';
 import { recapOn, setRecap, ago } from './recap.js';
 import { holdFocus, refocus } from './focus.js';
+import { refreshes } from './refresh.js';
 
 header();
 const page = $('#page');
 const M = 'id title{english romaji} episodes duration format status averageScore isAdult coverImage{large color} nextAiringEpisode{episode airingAt}';
 let user, riding = [], planning = [], paused = [], budget = 0;
 const pending = new Set(); // shows with a save on its way; their buttons stay off across redraws
+let saves = 0; // +1 saves started; a refresh that overlaps one is dropped, its data may predate the save
 
 // custom lists repeat entries; 18+ titles stay hidden unless 18+ is on
 const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()].filter(e => !e.media.isAdult || prefs.adult());
@@ -17,17 +19,53 @@ const entries = d => [...new Map(d.lists.flatMap(l => l.entries).map(e => [e.med
 async function boot() {
   user = await me();
   if (!user) return welcome();
-  // fresh: MAL-Sync and other apps update AniList while you watch, so home always asks again
+  apply(await load());
+  render();
+}
+
+// fresh: MAL-Sync and other apps update AniList while you watch, so home always asks again
+async function load() {
   const d = await gql(`query($u:Int){
     riding: MediaListCollection(userId:$u,type:ANIME,status_in:[CURRENT,REPEATING]){ lists{ entries{ status progress media{ ${M} } } } }
     planning: MediaListCollection(userId:$u,type:ANIME,status:PLANNING){ lists{ entries{ progress media{ ${M} } } } }
     paused: MediaListCollection(userId:$u,type:ANIME,status:PAUSED,sort:UPDATED_TIME_DESC){ lists{ entries{ progress updatedAt media{ ${M} } } } }
   }`, { u: user.id }, { fresh: true });
+  return d;
+}
+
+function apply(d) {
   riding = entries(d.riding);
   planning = entries(d.planning);
   paused = entries(d.paused).sort((a, b) => b.updatedAt - a.updatedAt);
-  render();
 }
+
+// Keeping Home current: ask AniList again after you've been away a while, or when a countdown reaches zero.
+// The shown data stays up while it loads (no loading screen), and the redraw keeps your scroll, focus and typing.
+const editing = () => { const a = document.activeElement; return page.contains(a) && (a.isContentEditable || a.matches('input, textarea, select')); };
+const live = refreshes({
+  load, show: d => { apply(d); redraw(); }, saves: () => saves, busy: () => !user || pending.size > 0, editing,
+  ats: () => [...page.querySelectorAll('[data-at]')].map(el => +el.dataset.at),
+});
+
+function redraw() {
+  const y = scrollY, f = page.contains(document.activeElement) ? document.activeElement : null, key = f && focusKey(f);
+  const typed = [...page.querySelectorAll('input[id], textarea[id], select[id]')].map(el => [el.id, el.value]);
+  render();
+  for (const [id, v] of typed) { const el = document.getElementById(id); if (el && el.value !== v) el.value = v; } // what you typed, as you typed it
+  if (key) page.querySelector(key)?.focus({ preventScroll: true });
+  scrollTo(0, y);
+}
+
+const away = ev => { if (ev.type !== 'blur' || ev.target === window) live.hide(); };
+const back = ev => { if (ev.type !== 'focus' || ev.target === window) live.back(); };
+document.addEventListener('visibilitychange', ev => (document.hidden ? away : back)(ev));
+window.addEventListener('blur', away);
+window.addEventListener('focus', back);
+// done typing: show what arrived meanwhile. Wait a tick: leaving a field fires change and focusout before focus lands
+// on the next control, and redrawing then would replace the control focus is moving to.
+const settle = () => setTimeout(live.settle);
+page.addEventListener('focusout', settle);
+page.addEventListener('change', settle);
 
 function greeting() {
   const h = new Date().getHours();
@@ -146,6 +184,7 @@ page.addEventListener('click', async ev => {
     const progress = logged(e.progress, m, !!done);
     if (progress == null) return; // +1 past the final episode
     pending.add(m.id);
+    saves++;
     const finished = done || finishes(progress, m), button = plus || done, hold = holdFocus(document, page, button);
     let saved = false;
     button.disabled = true;
@@ -211,7 +250,10 @@ function welcome() {
     </section>`;
 }
 
-setInterval(() => document.querySelectorAll('[data-at]').forEach(el => (el.textContent = countdown(el.dataset.at - Date.now() / 1000))), 1000);
+setInterval(() => {
+  document.querySelectorAll('[data-at]').forEach(el => (el.textContent = countdown(el.dataset.at - Date.now() / 1000)));
+  if (!document.hidden) live.tick();
+}, 1000);
 // data-ready tells the Mac app's self-test whether the page really loaded
 boot().then(() => (document.documentElement.dataset.ready = 'ok'))
   .catch(e => { fail(page, e); document.documentElement.dataset.ready = 'error'; });
