@@ -90,7 +90,7 @@ function render() {
           </div>
         </div>
       </li>${(branches.get(m.id) || []).map(branch).join('')}`;
-  }).join('') || '<li class="empty">No stops match. Switch to All stops.</li>';
+  }).join('') || `<li class="empty">No stops on this service.${view.service === 'local' ? '' : ' Switch to Local to see every stop.'}</li>`;
 
   const years = stops.map(m => m.startDate.year).filter(Boolean);
   const first = Math.min(...years), last = Math.max(...years);
