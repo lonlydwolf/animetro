@@ -158,3 +158,23 @@ test('an expired token that cannot be renewed right now reports it, still connec
   assert.deepEqual(seen, ['token']);
   assert.ok(simklConnected());
 });
+
+test('a renewal that answers without a refresh token keeps the one we have, for the next renewal', async t => {
+  login();
+  const sent = [];
+  let renewals = 0;
+  t.mock.method(globalThis, 'fetch', async (url, opt) => {
+    if (String(url).includes('/oauth2/token')) {
+      sent.push(new URLSearchParams(opt.body).get('refresh_token'));
+      return reply(200, { access_token: `new${++renewals}`, expires_in: 7 * 86400 }); // no refresh_token
+    }
+    return reply(opt.headers.Authorization === `Bearer new${renewals}` ? 200 : 401, { anime: [] });
+  });
+  await simklLibrary(); // 401 with "old", renew, retry with new1
+  assert.equal(stored().refresh, 'r1');
+  assert.equal(stored().access, 'new1');
+  localStorage.setItem(TOKEN, JSON.stringify({ ...stored(), access: 'revoked' }));
+  await simklLibrary(); // 401 with "revoked", renew again: with the refresh token we kept
+  assert.deepEqual(sent, ['r1', 'r1']);
+  assert.equal(stored().refresh, 'r1');
+});

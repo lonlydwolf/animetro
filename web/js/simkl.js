@@ -20,7 +20,8 @@ export const setSimklClient = id => put(KEY.client, id.trim() || null);
 const tokens = () => { try { return JSON.parse(get(KEY.token)); } catch { return null; } };
 export const simklConnected = () => !!tokens()?.access;
 export const simklDisconnect = () => put(KEY.token, null);
-const keep = t => put(KEY.token, JSON.stringify({ access: t.access_token, refresh: t.refresh_token, expires: Date.now() + t.expires_in * 1000 }));
+// Simkl's refresh token doesn't rotate, so a renewal may answer without one: then the one we have stays.
+const keep = t => put(KEY.token, JSON.stringify({ access: t.access_token, refresh: t.refresh_token || tokens()?.refresh, expires: Date.now() + t.expires_in * 1000 }));
 
 async function oauth(path, fields) {
   const res = await fetch(API + path, {
