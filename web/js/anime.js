@@ -1,4 +1,4 @@
-import { gql, me, title, plainText, listStatus, CARD, prefs, inApp, store } from './api.js';
+import { gql, title, plainText, CARD, prefs, inApp, store } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, listNote, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
@@ -8,7 +8,7 @@ import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } fr
 import { recapMode, recapPanel } from './recap.js';
 import { youtubeId } from './trailer.js';
 import { memo } from './memo.js';
-import { saveChecked } from './plan.js';
+import { saveChecked, riderList } from './plan.js';
 
 header();
 const id = +qs().get('id');
@@ -34,12 +34,12 @@ const Q = `query($id:Int){ Media(id:$id,type:ANIME){
   relations{edges{relationType(version:2)}}
 }}`;
 
-let media, entry, user, meError; // meError: who you are couldn't be read, so the page is read-only
+let media, entry, user, listError; // listError: who you are or your list couldn't be read, so the page is read-only
 
 async function boot() {
   if (!id) { location.href = 'index.html'; return; }
-  const status = listStatus([id]); // needs only the rider and the id, so it runs alongside the media request (never rejects)
-  [media, user] = await Promise.all([gql(Q, { id }).then(d => d.Media), me().catch(e => { meError = e; return null; })]);
+  const mine = riderList([id]); // needs only the rider and the id, so it runs alongside the media request (never rejects)
+  media = await gql(Q, { id }).then(d => d.Media);
   const m = media;
   if (m.isAdult && !prefs.adult()) {
     $('#page').innerHTML = `<section class="fy-hero"><span class="roundel" style="border-color:var(--marunouchi)">18</span><h1 style="margin-top:16px">This stop is 18+</h1>
@@ -48,7 +48,8 @@ async function boot() {
     $('#gate-open').onclick = adultGate;
     return;
   }
-  entry = (await status).get(id);
+  ({ user, error: listError } = await mine);
+  entry = (await mine).list.get(id);
   document.title = `${title(m)} · Animetro`;
   if (tint(m, '')) document.documentElement.style.setProperty('--cover', tint(m, ''));
 
@@ -199,7 +200,7 @@ function row(k, v) { return v && !String(v).startsWith('undefined') ? `<dt>${k}<
 
 function renderListControls() {
   const el = $('#list-ctl');
-  if (meError) { el.innerHTML = listNote(meError); return; }
+  if (listError) { el.innerHTML = listNote(listError); return; }
   if (!user) { el.innerHTML = '<a class="btn ghost" href="pass.html">Connect AniList to track</a>'; return; }
   if (!user.canWrite) { el.innerHTML = entry ? `<span class="tag s-${esc(entry.status)}">${STATUS[entry.status]}, ep ${entry.progress}</span>` : ''; return; }
   // total = episodes out so far; only a known final count can complete the show

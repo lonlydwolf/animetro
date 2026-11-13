@@ -20,6 +20,18 @@ export async function listedStatus(user, ids, query = gql, { viewer = false, fre
   } catch { return null; }
 }
 
+// For a page that shows your list next to public content (a show, a line): who you are and your entries for `ids`,
+// read together. Resolves { user, list, error }. On success list is a Map, and a show missing from it is confirmed
+// not on your list. If who you are or the list can't be read, user is null, list is empty and error says why, so the
+// page renders read-only with a note instead of offering adds and +1s built on a list it never saw.
+export async function riderList(ids, { rider = me, lookup = listedStatus } = {}) {
+  let user;
+  try { user = await rider(); } catch (error) { return { user: null, list: new Map(), error }; }
+  if (!user) return { user: null, list: new Map(), error: null };
+  const list = await lookup(user, ids);
+  return list ? { user, list, error: null } : { user: null, list: new Map(), error: new Error("AniList didn't answer") };
+}
+
 // 'listed': on your list with a status we know. 'absent': confirmed not on your list, the only state that may add.
 // 'unknown': the list couldn't be checked, or the show is on it but its status is null, missing or unrecognised.
 export function slotState(entry, known = true) {
