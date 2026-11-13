@@ -73,7 +73,7 @@ tests/          node:test unit tests per module, plus structure checks
 | `npm run build:mac` | Build `build/Animetro.app` |
 | `npm run dev:mac` | Run the Mac app against `web/` (edit, then ⌘R) |
 | `./macos/test.sh` | Unit-test the Mac app's Swift code (no internet needed) |
-| `./macos/selftest.sh` | Launch the built app and check it loads, stores settings, reaches AniList and draws a share-card picture |
+| `./macos/selftest.sh` | Launch the built app and check it loads, stores settings, reaches AniList, draws a share-card picture, and that **Log in with AniList** heads for AniList with Animetro's client (it stops there; nothing is logged in) |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, [SECURITY.md](SECURITY.md) for reporting problems and what's stored, and [CHANGELOG.md](CHANGELOG.md) for what changed.
 
@@ -129,10 +129,12 @@ Tiers: Platform Ticket 0, Local 300, Rapid 1,500, Express 4,000, Limited Express
 There are two ways to connect, both on the **My pass** page:
 
 - **Username (read only):** type any public AniList username. No setup needed.
-- **Log in (can edit your lists):** AniList needs a client ID from you once.
-  1. Go to https://anilist.co/settings/developer → *Create new client*.
-  2. Set the redirect URL to `http://localhost:5180/pass.html` for the browser (match the port you serve on), or `animetro://auth` for the Mac app. A client has one redirect URL, so use two clients if you use both.
-  3. Paste the client ID on the My pass page and log in.
+- **Log in (can edit your lists):**
+  - **Mac app:** click **Log in with AniList** and approve Animetro on AniList's page. Nothing to set up: the app uses Animetro's own AniList client.
+  - **Browser:** AniList needs a client ID from you once.
+    1. Go to https://anilist.co/settings/developer → *Create new client*.
+    2. Set the redirect URL to `http://localhost:5180/pass.html` (match the port you serve on).
+    3. Paste the client ID on the My pass page and log in.
 
 ## What's stored
 
@@ -142,7 +144,7 @@ AniList currently allows 30 requests a minute. Animetro batches queries, reuses 
 
 ## How the Mac app works
 
-`macos/Animetro.swift` is one Swift file: a window with a WebKit view that loads the same HTML, CSS and JavaScript from inside the app through an `animetro://` address, so there is no server and no port. AniList sends logins to `animetro://auth`, which the window catches. Links to other sites open in your browser. The app keeps its own login and settings, separate from your browser.
+`macos/Animetro.swift` is one Swift file: a window with a WebKit view that loads the same HTML, CSS and JavaScript from inside the app through an `animetro://` address, so there is no server and no port. AniList sends logins to `animetro://auth`, which the window catches. Animetro's own AniList client (ID 56211) is registered with that address, so logging in in the app is one click. Links to other sites open in your browser. The app keeps its own login and settings, separate from your browser.
 
 ## Releases
 

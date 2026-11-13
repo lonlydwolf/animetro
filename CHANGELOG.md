@@ -5,6 +5,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 ## [Unreleased]
 
 ### Added
+- Mac app: one-click login. **Log in with AniList** on My pass uses Animetro's own AniList client, so there's no client ID to create or paste. The web version still uses a client ID of your own. The Mac self-test checks the button heads for AniList with that client.
 - Mac app: a View menu with Zoom In (⌘+), Zoom Out (⌘−) and Actual Size (⌘0). The zoom level is remembered.
 - Mac app: if WebKit's page process crashes, the page reloads itself instead of staying blank (Home after a second crash, then a Try Again / Quit sheet).
 - Home refreshes itself when you come back after a minute or more, or when a countdown reaches zero, so a new episode shows up without a reload.
