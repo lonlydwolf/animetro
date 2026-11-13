@@ -1,4 +1,4 @@
-import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp, store } from './api.js';
+import { gql, me, title, plainText, listStatus, CARD, prefs, inApp, store } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, listNote, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
@@ -8,6 +8,7 @@ import { kitsuId, kitsuRange, rows, epState, episodeTotal, airedCount, PAGE } fr
 import { recapMode, recapPanel } from './recap.js';
 import { youtubeId } from './trailer.js';
 import { memo } from './memo.js';
+import { saveChecked } from './plan.js';
 
 header();
 const id = +qs().get('id');
@@ -217,17 +218,26 @@ function renderListControls() {
 }
 
 // One save at a time: the controls are disabled until it lands, so a later click can't be overtaken by an earlier one.
+// The controls show your entry as it was when the page loaded (or last saved), and every change is built from that,
+// so saveChecked() checks it against AniList first: if the entry changed elsewhere meanwhile (finished on your phone,
+// say), nothing is written and the controls show what it is now.
 let saving = false;
+const said = e => (e ? `${STATUS[e.status] || 'on your list'}, ep ${e.progress ?? 0}` : 'not on your list');
 async function save(change) {
   if (saving) return;
   saving = true;
   document.querySelectorAll('#status, #plus, [data-upto]').forEach(b => (b.disabled = true));
-  try {
-    const d = await saveEntries([{ mediaId: id, ...change }]);
-    entry = d.m0;
+  const r = await saveChecked([{ id, seen: entry, change }]);
+  if (r.saved.has(id)) {
+    entry = r.saved.get(id);
     chime(entry.status === 'COMPLETED' && entry.progress ? 'done' : 'tick');
     toast(entry.status === 'COMPLETED' ? 'Completed. Where to next?' : `Saved: ${STATUS[entry.status]}, ep ${entry.progress}`);
-  } catch (e) { toast(e.message); }
+  } else if (r.changed.has(id)) {
+    entry = r.changed.get(id) || undefined;
+    toast(`Your list changed somewhere else: this show is ${said(entry)} now. Nothing was changed here.`);
+  } else if (r.rateLimited) toast('AniList is busy right now, so nothing was saved. Try again in a moment.');
+  else if (r.error) toast(r.error.message);
+  else toast("Couldn't check your list just now, so nothing was saved. Try again in a moment.");
   saving = false;
   renderListControls();
   recap();

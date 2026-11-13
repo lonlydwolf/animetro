@@ -7,7 +7,7 @@ import { esc, STATUS } from './ui.js';
 export async function listedStatus(user, ids, query = gql, { viewer = false, fresh = false } = {}) {
   if (!user || !ids.length) return new Map();
   const parts = Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) =>
-    `p${i}: Page(page:${i + 1},perPage:50){ mediaList(userId:$u,type:ANIME,mediaId_in:$ids){ mediaId status progress } }`);
+    `p${i}: Page(page:${i + 1},perPage:50){ mediaList(userId:$u,type:ANIME,mediaId_in:$ids){ mediaId status progress updatedAt } }`);
   try {
     const d = await query(`query($u:Int,$ids:[Int]){ ${viewer ? 'Viewer{ id } ' : ''}${parts.join(' ')} }`, { u: user.id, ids }, { fresh });
     if (viewer && d?.Viewer?.id !== user.id) return null; // the token belongs to someone else now
