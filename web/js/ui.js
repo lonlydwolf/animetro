@@ -111,13 +111,16 @@ export function adultGate() {
 export const nsfw = m => (m?.isAdult && prefs.blur() ? ' nsfw' : '');
 
 // Typeahead that searches English + romaji titles. Debounced: we only get ~30 requests a minute.
-export function searchBox(input, onPick) {
+// Enter picks the highlighted suggestion; with none (yet) it hands the typed text to `onQuery`, which by
+// default opens line.html?q=, the page that finds the best match for a typed title.
+export function searchBox(input, onPick, onQuery = q => (location.href = `line.html?q=${encodeURIComponent(q)}`)) {
   const box = document.createElement('div');
   box.className = 'suggest';
   box.setAttribute('role', 'listbox');
   input.after(box);
   input.setAttribute('autocomplete', 'off');
-  let timer, items = [], active = -1, seq = 0;
+  // `itemsFor` is the text the suggestions were fetched for, so Enter never picks an answer to older text
+  let timer, items = [], itemsFor = null, active = -1, seq = 0;
 
   const render = () => {
     box.innerHTML = items.map((m, i) => `
@@ -128,25 +131,37 @@ export function searchBox(input, onPick) {
       </div>`).join('');
     box.classList.toggle('open', items.length > 0);
   };
+  const clear = () => { items = []; itemsFor = null; active = -1; render(); };
   input.addEventListener('input', () => {
     clearTimeout(timer);
     // every keystroke (clearing too) gets a new ticket, so a slower earlier answer can't land afterwards
     const my = ++seq;
+    // the old suggestions answer the old text: drop them now rather than when the new ones arrive
+    clear();
     const s = input.value.trim();
-    if (s.length < 2) { items = []; return render(); }
+    if (s.length < 2) return;
     timer = setTimeout(async () => {
       const d = await gql(`query($s:String,$a:Boolean){Page(perPage:10){media(search:$s,type:ANIME,sort:SEARCH_MATCH,isAdult:$a){id popularity isAdult title{english romaji} format startDate{year} coverImage{medium}}}}`, { s, a: adultArg() }).catch(() => null);
-      if (my !== seq || !d) return;
-      items = rankSearch(d.Page.media, s).slice(0, 7); active = 0; render();
+      if (my !== seq || !d || input.value.trim() !== s) return;
+      items = rankSearch(d.Page.media, s).slice(0, 7); itemsFor = s; active = items.length ? 0 : -1; render();
     }, 350);
   });
   input.addEventListener('keydown', e => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    // keys pressed while an IME is composing (Japanese, Chinese, Korean…) belong to the IME: Enter confirms the text
+    if (e.isComposing || e.keyCode === 229) return;
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && items.length) {
       e.preventDefault();
       active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
       render();
-    } else if (e.key === 'Enter' && items[active]) { e.preventDefault(); onPick(items[active]); }
-    else if (e.key === 'Escape') { items = []; render(); }
+    } else if (e.key === 'Enter') {
+      const s = input.value.trim();
+      if (!s) return;
+      e.preventDefault();
+      const pick = itemsFor === s && items[active];
+      // whatever is still loading must not open a dropdown over the page we're leaving
+      clearTimeout(timer); ++seq;
+      if (pick) onPick(pick); else onQuery(s);
+    } else if (e.key === 'Escape') { clearTimeout(timer); ++seq; clear(); }
   });
   box.addEventListener('mousedown', e => {
     if (e.target.closest('.suggest-info')) return;
