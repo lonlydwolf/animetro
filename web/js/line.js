@@ -1,8 +1,8 @@
-import { gql, title, listStatus, me, rankSearch, prefs, adultArg, inApp } from './api.js';
+import { gql, title, rankSearch, prefs, adultArg, inApp } from './api.js';
 import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, listNote, nsfw, cover, tint, safeUrl } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE, service, junctions } from './order.js';
 import { lineCard, showCard } from './share.js';
-import { addToPlanning, planReport } from './plan.js';
+import { addToPlanning, planReport, riderList } from './plan.js';
 
 header();
 
@@ -108,8 +108,8 @@ function render() {
     : list.size ? 'You have ridden the whole line. Nice.' : '';
   $('#perday-val').textContent = view.perDay;
 
-  $('#progress').hidden = !list.size && !data.meError;
-  if (data.meError) $('#progress').innerHTML = listNote(data.meError);
+  $('#progress').hidden = !list.size && !data.listError;
+  if (data.listError) $('#progress').innerHTML = listNote(data.listError);
   else if (list.size) {
     const pct = totalMin ? Math.round((visited / totalMin) * 100) : 0;
     $('#progress').innerHTML = `
@@ -179,9 +179,9 @@ async function boot() {
   const graph = await crawl(id, fetchMany, n => ($('#found').textContent = `${n} stop${n === 1 ? '' : 's'} found`));
   const { stops, transfers, anchor } = classify(id, graph, { adult: prefs.adult() });
   stops.forEach(m => (m.svc = service(m, anchor)));
-  let meError; // who you are couldn't be read: the line still shows, without your progress or save buttons
-  const [user, list] = await Promise.all([me().catch(e => { meError = e; return null; }), listStatus([...stops, ...transfers].map(m => m.id))]);
-  data = { stops, transfers, anchor, list, user, meError, capped: graph.capped };
+  // who you are or your list couldn't be read (error): the line still shows, without your progress or save buttons
+  const { user, list, error: listError } = await riderList([...stops, ...transfers].map(m => m.id));
+  data = { stops, transfers, anchor, list, user, listError, capped: graph.capped };
 
   if (tint(anchor, '')) document.documentElement.style.setProperty('--cover', tint(anchor, ''));
   document.title = `${title(anchor)} watch order · Animetro`;
