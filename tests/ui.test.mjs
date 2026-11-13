@@ -1,7 +1,8 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { safeUrl, safeColor, cover, tint, card, esc, safeFilename } from '../web/js/ui.js';
+import { safeUrl, safeColor, cover, tint, card, esc, safeFilename, fail } from '../web/js/ui.js';
+import { UnknownUser } from '../web/js/api.js';
 
 const HOSTILE = 'https://s4.anilist.co/x.jpg" onerror="alert(localStorage.getItem(\'animetro.token\'))';
 
@@ -43,4 +44,13 @@ test('file names built from titles or usernames carry no markup', () => {
   assert.equal(safeFilename('x"><img src=x onerror="alert(1)">.png'), 'x-img-src-x-onerror-alert-1-.png');
   assert.equal(safeFilename('../../etc/passwd'), 'etc-passwd');
   assert.equal(safeFilename(''), 'animetro');
+});
+
+test('a page error from an unknown username points to My pass; other errors stay plain and escaped', () => {
+  const el = {};
+  fail(el, new UnknownUser('ghost<b>'));
+  assert.match(el.innerHTML, /No AniList user called &quot;ghost&lt;b&gt;&quot;\./);
+  assert.match(el.innerHTML, /<a href="pass\.html">Change it on My pass<\/a>/);
+  fail(el, new Error("Couldn't reach AniList."));
+  assert.doesNotMatch(el.innerHTML, /pass\.html/);
 });

@@ -1,4 +1,4 @@
-import { gql, me, title, listStatus, rankSearch, CARD, prefs, adultArg } from './api.js';
+import { gql, me, UnknownUser, title, listStatus, rankSearch, CARD, prefs, adultArg } from './api.js';
 import { mode, setMode, tellApp } from './themes.js';
 
 export const $ = (s, el = document) => el.querySelector(s);
@@ -226,8 +226,9 @@ export function countdown(sec) {
 // your list, progress and save buttons are missing.
 export const listNote = err => `<span class="hint list-note" role="status">Couldn't load your list (${esc(String(err.message || err).replace(/\.$/, ''))}). <a href="pass.html">My pass</a></span>`;
 
+// An unknown saved username can't be fixed by trying again, so that error points to where it can be.
 export const fail = (el, err) => {
-  el.innerHTML = `<p class="empty">${esc(err.message || err)}</p>`;
+  el.innerHTML = `<p class="empty">${esc(err.message || err)}${err instanceof UnknownUser ? ' <a href="pass.html">Change it on My pass</a>' : ''}</p>`;
 };
 
 export { CARD };
