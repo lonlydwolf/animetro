@@ -123,8 +123,17 @@ const PERSONAL = /\b(Viewer|mutation|mediaList|mediaListEntry|MediaList|MediaLis
 // activity (by userId), which change when you save even though they need no token.
 const LIST_BOUND = /\b(userId|userName|activities|ListActivity)\b/;
 
+// A request sent with { retry: false } that AniList is rate-limiting: refused (429), or a pause is on.
+// Nothing was sent or nothing was done, so it's safe to check again and resend later.
+export class RateLimited extends Error {
+  constructor() { super("AniList is busy right now. Try again in a moment."); this.name = 'RateLimited'; this.status = 429; }
+}
+
 // fresh: don't answer from the cache. remember: false = don't put the answer in it either.
-export async function gql(query, variables = {}, { fresh = false, remember = true, tries = RETRIES } = {}) {
+// retry: false = one attempt, now: no waiting out a rate-limit pause first and no resend after a 429 (both throw
+// RateLimited instead). For a save that was checked just before it goes out: a resend after the wait would act on
+// a check that may no longer hold (another account signed in, or the list changed meanwhile).
+export async function gql(query, variables = {}, { fresh = false, remember = true, retry = true, tries = RETRIES } = {}) {
   const mutation = /^\s*mutation/.test(query);
   const personal = PERSONAL.test(query);
   const listBound = personal || LIST_BOUND.test(query);
@@ -138,7 +147,8 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
 
   const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
   if (token() && personal) headers.Authorization = 'Bearer ' + token();
-  await gate();
+  if (!retry && Date.now() < waitUntil()) throw new RateLimited();
+  await gate(); // with retry: false there's nothing to wait for by now
   let res;
   try {
     res = await fetch(API, { method: 'POST', headers, body: JSON.stringify({ query, variables }) });
@@ -147,6 +157,7 @@ export async function gql(query, variables = {}, { fresh = false, remember = tru
   }
   track(res);
   if (res.status === 429) { // track() set the pause; the retry's own gate() waits it out, so waits never stack
+    if (!retry) throw new RateLimited();
     if (tries > 0) return gql(query, variables, { fresh, remember, tries: tries - 1 });
     throw new Error('AniList is turning requests away right now. Wait a minute and try again.');
   }
@@ -264,12 +275,12 @@ export function myList() {
 // "Seen" = anything you've started, finished or given up on. Planning still counts as new.
 export const seenIds = async () => [...(await myList())].filter(([, s]) => s !== 'PLANNING').map(([id]) => id);
 
-// Save many entries in one request using aliased mutations.
-export async function saveEntries(entries) {
+// Save many entries in one request using aliased mutations. { retry: false } as for gql().
+export async function saveEntries(entries, { retry = true } = {}) {
   if (!entries.length) return;
   const body = entries.map((e, i) =>
     `m${i}: SaveMediaListEntry(mediaId:${+e.mediaId}${e.status ? `,status:${e.status}` : ''}${e.progress != null ? `,progress:${+e.progress}` : ''}){ mediaId status progress updatedAt }`);
-  const d = await gql(`mutation{ ${body.join(' ')} }`);
+  const d = await gql(`mutation{ ${body.join(' ')} }`, {}, { retry });
   // AniList answers a batch with the entries it saved plus an error for the rest; don't call that a success
   const saved = entries.filter((_, i) => d[`m${i}`]).map(e => +e.mediaId);
   if (saved.length < entries.length) {
