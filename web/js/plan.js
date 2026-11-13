@@ -1,4 +1,4 @@
-import { gql, me, token, saveEntries } from './api.js';
+import { gql, me, token, saveEntries, RateLimited } from './api.js';
 import { esc, STATUS } from './ui.js';
 
 // The rider's entries for `ids` as Map(mediaId -> entry), or null when AniList couldn't be asked. Unlike
@@ -74,7 +74,8 @@ export function planBoard({ rider = me, token: tok = token, lookup = listedStatu
       return state(id);
     },
 
-    // "+ Planning": 'added' once saved; otherwise the show's state now ('busy' if a save for it is already running)
+    // "+ Planning": 'added' once saved; 'rate-limited' if AniList refused it for now (nothing saved); otherwise the
+    // show's state now ('busy' if a save for it is already running)
     async add(id) {
       if (busy.has(id)) return 'busy';
       busy.add(id);
@@ -88,7 +89,16 @@ export function planBoard({ rider = me, token: tok = token, lookup = listedStatu
         if (tok() !== t || !mine) { record(id, null, false); return 'unknown'; }
         if (mine.get(id)) { record(id, mine, true); return state(id); } // already on your list: never overwrite it
         let saved;
-        try { saved = (await save([{ mediaId: id, status: 'PLANNING' }]))?.m0; } catch (err) { next(id); record(id, null, false); throw err; }
+        try {
+          // one attempt, now: a resend after a rate-limit wait would act on a check that may no longer hold
+          saved = (await save([{ mediaId: id, status: 'PLANNING' }], { retry: false }))?.m0;
+        } catch (err) {
+          next(id);
+          // refused: nothing was done, so + Planning again; the next click runs the whole check again
+          if (err instanceof RateLimited) { record(id, mine, true); return 'rate-limited'; }
+          record(id, null, false); // anything else: it may or may not have saved
+          throw err;
+        }
         next(id); // anything asked before the save is out of date now
         info.set(id, { entry: saved?.status ? saved : { status: 'PLANNING' }, known: true });
         return 'added';
