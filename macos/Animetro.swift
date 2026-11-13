@@ -4,12 +4,13 @@
 // which this window catches before it goes anywhere.
 //
 // Dev mode: ANIMETRO_WEB=/path/to/animetro/web serves the files straight from that folder, so an edit
-// only needs Cmd+R (see macos/dev.sh). Right-click > Inspect Element opens Safari's Web Inspector.
+// only needs Cmd+R (see macos/dev.sh). Only then does right-click > Inspect Element open Safari's Web Inspector.
 import Cocoa
 import WebKit
 import UniformTypeIdentifiers
 
-let web = (ProcessInfo.processInfo.environment["ANIMETRO_WEB"].map { URL(fileURLWithPath: $0) }
+let devWeb = ProcessInfo.processInfo.environment["ANIMETRO_WEB"]
+let web = (devWeb.map { URL(fileURLWithPath: $0) }
   ?? Bundle.main.resourceURL!.appendingPathComponent("web")).standardizedFileURL
 let home = URL(string: "animetro://app/index.html")!
 
@@ -119,7 +120,7 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     view.navigationDelegate = self
     view.uiDelegate = self
     view.allowsBackForwardNavigationGestures = true
-    if #available(macOS 13.3, *) { view.isInspectable = true } // right-click > Inspect Element
+    if #available(macOS 13.3, *) { view.isInspectable = devWeb != nil } // right-click > Inspect Element, in dev mode only
     view.setValue(false, forKey: "drawsBackground") // no white flash before the dark page paints
 
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
