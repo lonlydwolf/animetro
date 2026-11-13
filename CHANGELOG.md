@@ -4,6 +4,44 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- Mac app: a View menu with Zoom In (⌘+), Zoom Out (⌘−) and Actual Size (⌘0). The zoom level is remembered.
+- Mac app: if WebKit's page process crashes, the page reloads itself instead of staying blank (Home after a second crash, then a Try Again / Quit sheet).
+- Home refreshes itself when you come back after a minute or more, or when a countdown reaches zero, so a new episode shows up without a reload.
+- `./macos/test.sh`: unit tests for the Mac app's picture route, run in CI. The Mac self-test now fails unless every check it reports passes, including reaching AniList and drawing a share-card picture.
+
+### Changed
+- Show pages load faster: the show, your list entry, Kitsu's episodes and AniList's streaming episodes are fetched side by side, and the Kitsu lookup happens once per show.
+- Saving a list change keeps cached public answers (watch-order lines, show pages), so the next page doesn't fetch them again.
+- AniList rate limits cause one pause, as long as AniList asks for, instead of two stacked ones. The pause notice no longer names a fixed limit.
+- Between 900 and 1380 pixels wide, the header moves its links to a second row instead of squeezing the search box and pushing My pass off screen. Long usernames are shortened with an ellipsis.
+- `npm start` only serves to this computer (127.0.0.1).
+
+### Security
+- Every page has a Content-Security-Policy: scripts only from Animetro itself (no inline scripts, no eval), connections only to AniList, Kitsu and Simkl, pictures only from AniList's, Kitsu's, Crunchyroll's and YouTube's image servers.
+- Ranking descriptions on show pages are escaped, and YouTube trailer IDs are checked before they go into a link.
+- Your profile in each tab is tied to the login it was fetched for. If another tab logs out or switches account, the tab reloads, and nothing is saved under an account the page wasn't showing.
+- Mac app: only Animetro's own page can send messages to the app (not AniList's login page or any frame), and every message is checked.
+- Mac app: links open outside the app only if they're https, http or mailto. AniList loads inside the app only over https.
+- Mac app: the share-card picture route serves only raster images (no SVG), up to 25 MiB, and stops the download as soon as it's over.
+- Mac app: the Web Inspector is only on when running from `./macos/dev.sh`.
+
+### Fixed
+- Offline or with AniList down, pages say AniList couldn't be reached instead of looking logged out. An unknown username says so and links to My pass to change it.
+- List changes are checked against AniList at the moment you click. + Planning (watch-order lines, gacha), +1 (Home, My pass) and status changes on a show's page no longer undo what you did elsewhere since the page loaded, such as lowering your progress or moving a Completed show back to Planning. Each change is sent once, one at a time.
+- Gacha shows a pulled show's list status instead of always offering + Planning.
+- If your list can't be read, show and watch-order pages go read-only and say so, instead of offering to add shows that may already be on it.
+- Home: an airing show with no schedule or episode count on AniList no longer counts as fully watched, the last +1 can't be sent twice, and keyboard focus stays on +1 after saving.
+- My pass: each show's +1 waits for the previous one, and the card shows the progress AniList saved.
+- History: if an older page fails to load, Load older can try again and your timeline stays.
+- Explore: a failed Load more keeps your results and asks for the same page again; answers for old filters are dropped.
+- Search: Enter searches what you typed, never a suggestion left over from your previous text.
+- Departures: switching days quickly can't show an earlier day's trains under the new day.
+- Backup sync: Check works again after a preview with nothing to send, a Simkl rate limit or brief error no longer disconnects you, cancelling a Simkl login stops it, and two tabs take turns writing to Simkl.
+- Watch-order lines stop at exactly 120 stops, and the empty-state note names the Local toggle.
+- Map Rewind counts shows with no start or finish date, using when you last updated them.
+- No sideways scrolling on narrow phones on My pass, Gacha and Backup sync (mostly in Safari and the Mac app), and the "New to me" toggles stay hidden when they should be.
+
 ## [1.1.0] - 2026-11-07
 
 ### Added
