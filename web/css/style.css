@@ -588,6 +588,7 @@ section { margin-top: 56px; }
 .gate p { color: var(--dim); margin: 0; }
 .gate-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
 .check { display: flex !important; gap: 10px; align-items: flex-start; cursor: pointer; color: var(--ink) !important; font-weight: 500 !important; }
+.check[hidden] { display: none !important; } /* the flex !important above would otherwise beat [hidden] */
 .check input { accent-color: var(--platform); width: 18px; height: 18px; margin: 3px 0 0; flex: none; }
 .check small { display: block; color: var(--dim); font-size: .8rem; }
 .fresh { background: var(--tunnel); padding: 12px 14px; border-radius: 14px; }
