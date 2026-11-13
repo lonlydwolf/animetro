@@ -54,31 +54,41 @@ export async function waitForLogin(code, signal) {
   throw new Error('The code expired. Try again.');
 }
 
-// Access tokens last 7 days; the refresh token renews them (and itself) for 180 days.
+// Access tokens last 7 days; the refresh token gets a new one for 180 days. It doesn't change itself (Simkl's
+// refresh tokens don't rotate), but each renewal replaces the access token, so the previous one stops working.
+// force: Simkl just rejected the access token (401), so renew it even if it isn't due.
 async function access(force = false) {
   const t = tokens();
   if (!t) throw new Error('Connect Simkl first.');
   if (!force && Date.now() < t.expires - 864e5) return t.access;
-  const r = await oauth('/oauth2/token', { grant_type: 'refresh_token', refresh_token: t.refresh });
-  if (!r.ok) { simklDisconnect(); throw new Error('Your Simkl login ran out. Connect again.'); }
-  keep(r.json);
-  return r.json.access_token;
+  const r = await oauth('/oauth2/token', { grant_type: 'refresh_token', refresh_token: t.refresh }); // throws, connected, if unreachable
+  if (r.ok) { keep(r.json); return r.json.access_token; }
+  // Only a rejected refresh token means the login is gone. A busy or broken Simkl (5xx, 429) keeps it.
+  if (r.status === 400 || r.status === 401) { simklDisconnect(); throw new Error('Your Simkl login ran out. Connect again.'); }
+  if (!force && Date.now() < t.expires) return t.access; // renewal was early anyway; the current token still works
+  throw new Error(`Simkl couldn't renew your login just now (it answered ${r.status}). You're still connected; try again in a minute.`);
 }
 
 let lastWrite = 0;
-async function call(path, body, retried = false) {
+// One retry for each kind of trouble: a 401 renews the token once, a 429 waits once. Waiting never renews:
+// the retry after a 429 sends the very token the 429 answered (token), without asking access() again.
+async function call(path, body, { renewed = false, waited = false, renew = false, token } = {}) {
   if (body) { // Simkl allows one write per second per app and user, and suspends apps that go faster
     const gap = lastWrite + 1100 - Date.now();
     if (gap > 0) await sleep(gap);
     lastWrite = Date.now();
   }
+  const auth = token ?? await access(renew);
   const res = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}client_id=${encodeURIComponent(simklClient())}&${APP}`, {
     method: body ? 'POST' : 'GET',
-    headers: { Authorization: 'Bearer ' + await access(retried), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Authorization: 'Bearer ' + auth, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   }).catch(() => { throw new Error("Couldn't reach Simkl. Check your connection."); });
-  if (res.status === 401 && !retried) return call(path, body, true);
-  if (res.status === 429 && !retried) { await sleep(Math.min(+res.headers.get('Retry-After') || 10, 60) * 1000); return call(path, body, true); }
+  if (res.status === 401 && !renewed) return call(path, body, { renewed: true, waited, renew: true });
+  if (res.status === 429 && !waited) {
+    await sleep(Math.min(+res.headers.get('Retry-After') || 10, 60) * 1000);
+    return call(path, body, { renewed, waited: true, token: auth });
+  }
   if (!res.ok) throw new Error(`Simkl answered ${res.status}. Nothing after this point was sent.`);
   return res.json().catch(() => ({}));
 }
