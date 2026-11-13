@@ -5,6 +5,7 @@ import { syncOn, simklConnected } from './simkl.js';
 import { chime } from './chime.js';
 import { passCard, showCard } from './share.js';
 import { picker } from './themes.js';
+import { lock } from './lock.js';
 
 header();
 const page = $('#page');
@@ -162,19 +163,29 @@ function renderCurrent(user, list) {
         ${user.canWrite && (!total || progress < total) ? `<button class="tag add" data-plus="${m.id}" data-total="${total}" data-final="${final}">+1</button>` : ''}
       </div>`;
   }).join('');
-  el.addEventListener('click', async e => {
+  // AniList's answer is the saved state: the next +1 builds on it, never on what the page happens to show
+  const saved = new Map(list.map(({ progress, media: m }) => [m.id, progress]));
+  const once = lock(); // one save per show at a time
+  el.addEventListener('click', e => {
     const b = e.target.closest('[data-plus]');
     if (!b) return;
-    const span = b.closest('.journey').querySelector('[data-progress]');
-    const progress = +span.textContent + 1, total = +b.dataset.total, done = +b.dataset.final > 0 && progress >= +b.dataset.final;
-    try {
-      await saveEntries([{ mediaId: +b.dataset.plus, progress, ...(done ? { status: 'COMPLETED' } : {}) }]);
-      span.textContent = progress;
-      b.closest('.journey').querySelector('.bar i').style.width = `${total ? Math.min(100, (progress / total) * 100) : 0}%`;
-      if (total && progress >= total) b.remove(); // caught up with what's out
-      chime(done ? 'done' : 'tick');
-      toast(done ? 'Completed. End of the line!' : `Episode ${progress} logged`);
-    } catch (err) { toast(err.message); }
+    const id = +b.dataset.plus;
+    once(id, async () => {
+      b.disabled = true;
+      const journey = b.closest('.journey'), total = +b.dataset.total, final = +b.dataset.final;
+      const progress = saved.get(id) + 1, done = final > 0 && progress >= final;
+      try {
+        const now = (await saveEntries([{ mediaId: id, progress, ...(done ? { status: 'COMPLETED' } : {}) }])).m0;
+        const p = now.progress ?? progress, finished = now.status === 'COMPLETED';
+        saved.set(id, p);
+        journey.querySelector('[data-progress]').textContent = p;
+        journey.querySelector('.bar i').style.width = `${total ? Math.min(100, (p / total) * 100) : 0}%`;
+        if (total && p >= total) b.remove(); // caught up with what's out
+        chime(finished ? 'done' : 'tick');
+        toast(finished ? 'Completed. End of the line!' : `Episode ${p} logged`);
+      } catch (err) { toast(err.message); }
+      b.disabled = false;
+    });
   });
 }
 
