@@ -143,18 +143,27 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
       return decisionHandler(.cancel)
     }
     let mainFrame = action.targetFrame?.isMainFrame ?? true
-    if url.scheme == "animetro" || !mainFrame || url.host == "anilist.co" || url.scheme == "about" {
+    let scheme = url.scheme?.lowercased()
+    let aniList = scheme == "https" && url.host?.lowercased() == "anilist.co" // the login page, and only over HTTPS
+    if scheme == "animetro" || !mainFrame || aniList || scheme == "about" {
       guard mainFrame, savingScores > 0 else { return decisionHandler(.allow) }
       return leaveWhileSaving { decisionHandler($0 ? .allow : .cancel) } // links, Back, Reload: same question
     }
-    NSWorkspace.shared.open(url)
+    App.openExternally(url)
     decisionHandler(.cancel)
   }
 
   // target="_blank" links (streaming sites, AniList profile) go to your browser.
   func webView(_ webView: WKWebView, createWebViewWith config: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-    if let url = action.request.url { NSWorkspace.shared.open(url) }
+    if let url = action.request.url { App.openExternally(url) }
     return nil
+  }
+
+  // Only web and mail links leave the app. Any other scheme would hand the URL to whatever app claims it
+  // (file:, custom app schemes, …), so those are dropped.
+  static func openExternally(_ url: URL) {
+    guard let scheme = url.scheme?.lowercased(), ["https", "http", "mailto"].contains(scheme) else { return }
+    NSWorkspace.shared.open(url)
   }
 
   // The page leaves room for the close/minimize/zoom buttons, which full screen hides; tell each page which it is.
