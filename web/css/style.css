@@ -92,6 +92,15 @@ section { margin-top: 56px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* ---------- header ---------- */
+/* The sticky header's height, which sticky side panels and scrolled-to targets clear. A row is as tall as its
+   tallest item: the search box (18px padding and border around a 16px x 1.6 line), a link (12px padding around
+   a .95rem x 1.6 line) or the brand name (1.25rem x 1.6). The header adds 1px border and 2 x 10px padding; two
+   rows (narrower windows, below) add a 10px gap and a row of links. 0 under 900px, where it doesn't stick. */
+:root {
+  --header-row: max(43.6px, 12px + 1.52rem, 2rem);
+  --header-h: calc(21px + var(--header-row));
+}
+html { scroll-padding-top: calc(var(--header-h) + 13px); }
 .top {
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; gap: 22px; padding: 10px 20px;
@@ -108,7 +117,7 @@ section { margin-top: 56px; }
   font: 400 14px/1 var(--display);
 }
 .brand-name { font: 400 1.25rem var(--display); }
-.top nav { display: flex; gap: 4px; }
+.top nav { display: flex; gap: 4px; flex-shrink: 0; }
 .top nav a, .pass-link {
   text-decoration: none; color: var(--dim); padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: .95rem; white-space: nowrap;
 }
@@ -121,7 +130,7 @@ section { margin-top: 56px; }
 }
 .top-search input:focus, .field:focus { border-color: var(--platform); }
 .pass-link { display: flex; align-items: center; gap: 8px; }
-.top-end { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.top-end { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .top-search + .top-end { margin-left: 0; }
 .adult-pill {
   border: 1px dashed var(--rail); background: none; color: var(--dim); border-radius: 99px; padding: 4px 9px;
@@ -133,6 +142,8 @@ section { margin-top: 56px; }
 .adult-pill[aria-pressed=true] { background: var(--marunouchi); border: 1px solid var(--marunouchi); color: #fff; text-decoration: none; }
 .pass-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--rail) center/cover; display: none; }
 .pass-avatar.on { display: block; }
+/* AniList names run to 20 characters; a long one is trimmed so it can't push the header wider than the window */
+.pass-name { max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- typeahead ---------- */
 .suggest {
@@ -265,7 +276,7 @@ button.tag.add:disabled:hover { background: transparent; color: var(--platform);
 .stat span { color: var(--dim); font-size: .85rem; }
 
 .line-layout { display: grid; grid-template-columns: 300px 1fr; gap: 48px; margin-top: 36px; align-items: start; }
-.planner { position: sticky; top: 78px; display: grid; gap: 4px; }
+.planner { position: sticky; top: calc(var(--header-h) + 13px); display: grid; gap: 4px; }
 .planner .btn { margin-top: 10px; width: 100%; }
 .planner h3 { margin-top: 28px; }
 .perday { display: grid; gap: 6px; margin-top: 8px; }
@@ -448,7 +459,7 @@ button.tag.add:disabled:hover { background: transparent; color: var(--platform);
 
 /* ---------- explore ---------- */
 .explore { display: grid; grid-template-columns: 270px 1fr; gap: 40px; margin-top: 36px; align-items: start; }
-.filters { position: sticky; top: 78px; display: grid; gap: 18px; max-height: calc(100vh - 100px); overflow: auto; padding: 2px 6px 20px 2px; }
+.filters { position: sticky; top: calc(var(--header-h) + 13px); display: grid; gap: 18px; max-height: calc(100vh - var(--header-h) - 35px); overflow: auto; padding: 2px 6px 20px 2px; }
 .filters label, .filters fieldset { display: grid; gap: 6px; font-size: .88rem; color: var(--dim); font-weight: 700; }
 .filters fieldset { border: 0; padding: 0; margin: 0; }
 .filters legend { padding: 0; margin-bottom: 6px; }
@@ -917,7 +928,21 @@ kbd { font: 700 .7rem var(--body); color: var(--dim); padding: 0 6px; border-rad
 .rate-done .hint { font-size: 1rem; max-width: 52ch; margin: 10px auto 22px; }
 
 /* ---------- responsive ---------- */
+/* One header row needs ~1380px with web fonts and a long name (brand + 8 links + a usable search + pass).
+   Below that the links drop to their own row; em so it also holds when the default font size is bigger. */
+@media (max-width: 86.25em) {
+  :root { --header-h: calc(43px + var(--header-row) + 1.52rem); }
+  .top { flex-wrap: wrap; row-gap: 10px; }
+  .top nav { order: 3; flex-basis: 100%; min-width: 0; overflow-x: auto; }
+}
+/* the same, 66px sooner in the Mac app, whose window buttons sit left of the brand */
+@media (max-width: 90.375em) {
+  [data-app]:not([data-fullscreen]) { --header-h: calc(43px + var(--header-row) + 1.52rem); }
+  [data-app]:not([data-fullscreen]) .top { flex-wrap: wrap; row-gap: 10px; }
+  [data-app]:not([data-fullscreen]) .top nav { order: 3; flex-basis: 100%; min-width: 0; overflow-x: auto; }
+}
 @media (max-width: 900px) {
+  :root, [data-app]:not([data-fullscreen]) { --header-h: 0px; }
   .top { position: relative; flex-wrap: wrap; gap: 10px 14px; padding: 10px 16px; }
   .top nav { order: 3; width: 100%; overflow-x: auto; }
   .top-search { order: 4; max-width: none; flex-basis: 100%; }
@@ -947,6 +972,7 @@ kbd { font: 700 .7rem var(--body); color: var(--dim); padding: 0 6px; border-rad
   .eps-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
 @media (max-width: 600px) {
+  .pass-name { max-width: 6em; }
   .rate-card { grid-template-columns: 1fr; }
   .rate-poster img { width: 150px; }
   .rate-scale { display: flex; flex-wrap: wrap; }
