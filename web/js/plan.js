@@ -90,6 +90,17 @@ export async function saveChecked(items, { rider = me, token: tok = token, looku
 // "Add to Planning" for shows the page showed as not on your list.
 export const addToPlanning = (ids, deps) => saveChecked(ids.map(id => ({ id, seen: undefined, change: { status: 'PLANNING' } })), deps);
 
+// An entry in words, for "it changed somewhere else" notes: "Watching, ep 5" / "not on your list".
+export const describeEntry = e => (e ? `${STATUS[e.status] || 'on your list'}, ep ${e.progress ?? 0}` : 'not on your list');
+
+// Why a single checked save didn't happen (when it wasn't saved and the entry hadn't changed).
+export function notSaved(r) {
+  if (r.rateLimited) return 'AniList is busy right now, so nothing was saved. Try again in a moment.';
+  if (r.error) return r.error.message;
+  if (r.readOnly) return 'Log in with AniList on My pass to change your list.';
+  return "Couldn't check your list just now, so nothing was saved. Try again in a moment.";
+}
+
 // What happened, in a sentence: "Added 3 to Planning; 2 were already on your list."
 export function planReport(r, asked) {
   if (r.rateLimited) return 'AniList is busy right now, so nothing was added. Try again in a moment.';
