@@ -104,7 +104,7 @@ final class Files: NSObject, WKURLSchemeHandler, URLSessionDataDelegate {
   }
 }
 
-final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, NSMenuItemValidation {
   var window: NSWindow!
   var view: WKWebView!
   var titleWatch: NSKeyValueObservation?
@@ -122,6 +122,8 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     view.allowsBackForwardNavigationGestures = true
     if #available(macOS 13.3, *) { view.isInspectable = devWeb != nil } // right-click > Inspect Element, in dev mode only
     view.setValue(false, forKey: "drawsBackground") // no white flash before the dark page paints
+    let zoom = UserDefaults.standard.double(forKey: "pageZoom") // View > Zoom In/Out, from last time (0 when never set)
+    view.pageZoom = App.zoomSteps.contains(zoom) ? zoom : 1
 
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860),
                       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
@@ -297,6 +299,25 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
   @objc func goBack() { view.goBack() }
   @objc func goForward() { view.goForward() }
   @objc func reload() { view.reload() }
+  // View > Zoom In / Zoom Out / Actual Size: the page's text and layout, in Safari's steps, remembered between launches.
+  static let zoomSteps: [CGFloat] = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+  @objc func zoomIn() { setZoom(App.zoomSteps.first { $0 > view.pageZoom + 0.001 }) }
+  @objc func zoomOut() { setZoom(App.zoomSteps.last { $0 < view.pageZoom - 0.001 }) }
+  @objc func actualSize() { setZoom(1) }
+  func setZoom(_ zoom: CGFloat?) {
+    guard let zoom else { return } // already at the largest or smallest step
+    view.pageZoom = zoom
+    UserDefaults.standard.set(Double(zoom), forKey: "pageZoom")
+  }
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    switch item.action {
+    case #selector(zoomIn): return view.pageZoom < App.zoomSteps.last! - 0.001
+    case #selector(zoomOut): return view.pageZoom > App.zoomSteps.first! + 0.001
+    case #selector(actualSize): return abs(view.pageZoom - 1) > 0.001
+    default: return true
+    }
+  }
+
   @objc func find() { view.evaluateJavaScript("document.querySelector('.top-search input, #q')?.focus()") }
 
   func menu() -> NSMenu {
@@ -319,6 +340,11 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
     add("Edit", [item("Undo", Selector(("undo:")), "z"), item("Redo", Selector(("redo:")), "z", [.command, .shift]), .separator(),
                  item("Cut", #selector(NSText.cut(_:)), "x"), item("Copy", #selector(NSText.copy(_:)), "c"),
                  item("Paste", #selector(NSText.paste(_:)), "v"), item("Select All", #selector(NSText.selectAll(_:)), "a")])
+    // ⌘= zooms in too (the same key as + without Shift); a hidden item still answers its shortcut
+    let zoomInToo = item("Zoom In", #selector(zoomIn), "=")
+    zoomInToo.isHidden = true
+    add("View", [item("Zoom In", #selector(zoomIn), "+"), zoomInToo, item("Zoom Out", #selector(zoomOut), "-"),
+                 item("Actual Size", #selector(actualSize), "0")])
     add("Go", [item("Home", #selector(goHome), "h", [.command, .shift]), item("Find a Series", #selector(find), "f"),
                item("Back", #selector(goBack), "["), item("Forward", #selector(goForward), "]"), item("Reload", #selector(reload), "r")])
     add("Window", [item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"), item("Zoom", #selector(NSWindow.performZoom(_:)), ""),
