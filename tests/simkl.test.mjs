@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { plan, simklLibrary, simklConnected, setSyncOn, setSimklClient, startLogin, waitForLogin } from '../web/js/simkl.js';
+import { plan, send, simklLibrary, simklConnected, simklDisconnect, setSyncOn, setSimklClient, startLogin, waitForLogin } from '../web/js/simkl.js';
 
 const ent = (id, status, progress, extra = {}) => ({ status, progress, score: 0, media: { id, idMal: id + 1000, episodes: 12, title: { romaji: 'T' + id } }, ...extra });
 const row = (anilist, status, watched, extra = {}) => ({ status, watched_episodes_count: watched, anime: { ids: { simkl: anilist * 7, anilist: String(anilist) } }, ...extra });
@@ -320,3 +320,222 @@ test('another tab renewing with the same refresh token (they never rotate) is no
   assert.ok(simklConnected(), 'not disconnected by our refresh losing the race');
   assert.equal(stored().access, 'theirs');
 });
+
+// ---- writes and renewals take turns, across tabs too (audit N8) ---------------
+const WROTE = 'animetro.simkl.lastWrite';
+const PLAN = n => ({ history: [{ ids: { anilist: n }, status: 'completed' }], list: [], ratings: [] });
+const settle = () => new Promise(r => setImmediate(r));
+// Fake clock: setTimeout and Date only, so promises (and the Web Locks double below) still run. It starts an
+// hour on, so writes left over from earlier tests are long past.
+let hour = 0;
+const clock = t => t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() + ++hour * 3600e3 });
+async function drive(t, ...work) {
+  let done = false;
+  const all = Promise.allSettled(work).then(r => { done = true; return r; });
+  for (let i = 0; !done && i < 20000; i++) { await settle(); t.mock.timers.tick(10); }
+  for (const r of await all) if (r.status === 'rejected') throw r.reason;
+  return all;
+}
+// A Simkl that takes 200ms per request and logs when each write started, and how many were in flight.
+function server(t, { tokenReply, tokenDelay = 200 } = {}) {
+  const log = { writes: [], gets: [], tokens: 0, overlap: 0 };
+  let inflight = 0;
+  t.mock.method(globalThis, 'fetch', async (url, opt) => {
+    if (String(url).includes('/oauth2/token')) { log.tokens++; await new Promise(r => setTimeout(r, tokenDelay)); return tokenReply(); }
+    const auth = opt.headers.Authorization.replace('Bearer ', '');
+    if (opt.method === 'GET') { log.gets.push(auth); return auth === 'new' || auth === 'theirs' ? reply(200, { anime: [] }) : reply(401); }
+    log.writes.push(Date.now());
+    log.overlap = Math.max(log.overlap, ++inflight);
+    await new Promise(r => setTimeout(r, 200));
+    inflight--;
+    return reply(200, {});
+  });
+  return log;
+}
+
+// navigator.locks for one test only. Node 22 (CI) has a navigator but no Web Locks, Node 26 has both and
+// Node 20 has neither, so every test below picks its own: the double, or none at all.
+function shadowLocks(t, value) {
+  const made = !globalThis.navigator;
+  if (made) Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true, writable: true });
+  Object.defineProperty(navigator, 'locks', { value, configurable: true });
+  t.after(() => { if (made) delete globalThis.navigator; else delete navigator.locks; });
+}
+// A deterministic stand-in for the Web Locks API: exclusive locks granted first come, first served, per name.
+// It records the name of every request, and is shared by "this tab" and "another tab" in a test.
+function useLocks(t) {
+  const queues = new Map(), requests = [];
+  const locks = {
+    request(name, ...args) {
+      const callback = args.at(-1); // request(name, callback) or request(name, options, callback)
+      requests.push(name);
+      const granted = (queues.get(name) || Promise.resolve()).then(() => callback({ name, mode: 'exclusive' }));
+      queues.set(name, granted.then(() => {}, () => {}));
+      return granted;
+    },
+  };
+  shadowLocks(t, locks);
+  return { locks, requests };
+}
+// Like a browser without Web Locks: calls only take turns within this tab.
+const noLocks = t => shadowLocks(t, undefined);
+
+for (const locks of [true, false]) {
+  const how = locks ? 'with Web Locks' : 'without Web Locks (in-tab queue)';
+
+  test(`concurrent sends write one at a time, a second apart, ${how}`, async t => {
+    if (locks) useLocks(t); else noLocks(t);
+    login();
+    localStorage.removeItem(WROTE);
+    clock(t);
+    const log = server(t);
+    await drive(t, send(PLAN(1)), send(PLAN(2)), send(PLAN(3)));
+    assert.equal(log.writes.length, 3);
+    assert.equal(log.overlap, 1, 'never two writes in flight');
+    for (let i = 1; i < 3; i++) assert.ok(log.writes[i] - log.writes[i - 1] >= 1100, `gap ${log.writes[i] - log.writes[i - 1]}ms`);
+  });
+
+  test(`concurrent calls rejected with the same token renew it once, ${how}`, async t => {
+    if (locks) useLocks(t); else noLocks(t);
+    login();
+    clock(t);
+    const log = server(t, { tokenReply: () => reply(200, FRESH) });
+    await drive(t, simklLibrary(), simklLibrary(), simklLibrary());
+    assert.equal(log.tokens, 1, 'one renewal; the others re-read the stored token after waiting');
+    assert.deepEqual(log.gets.filter(a => a === 'new').length, 3);
+  });
+}
+
+test('a write waits a second after the last write from another tab', async t => {
+  useLocks(t);
+  login();
+  clock(t);
+  localStorage.setItem(WROTE, String(Date.now())); // another tab just wrote
+  const start = Date.now();
+  const log = server(t);
+  await drive(t, send(PLAN(1)));
+  assert.ok(log.writes[0] - start >= 1100, `waited ${log.writes[0] - start}ms`);
+  assert.equal(+localStorage.getItem(WROTE), log.writes[0], 'and tells the other tabs when it wrote');
+});
+
+test('a bogus future write time stalls a write by at most one gap', async t => {
+  useLocks(t);
+  login();
+  clock(t);
+  localStorage.setItem(WROTE, String(Date.now() + 864e5));
+  const start = Date.now();
+  const log = server(t);
+  await drive(t, send(PLAN(1)));
+  assert.ok(log.writes[0] - start <= 1100);
+});
+
+test('a write waits while another tab holds the write lock', async t => {
+  const { locks } = useLocks(t);
+  login();
+  localStorage.removeItem(WROTE);
+  clock(t);
+  const log = server(t);
+  let free;
+  const other = locks.request('animetro.simkl.write', () => new Promise(r => { free = r; }));
+  while (!free) await settle();
+  const sending = send(PLAN(1));
+  for (let i = 0; i < 300; i++) { await settle(); t.mock.timers.tick(10); } // 3s pass
+  assert.equal(log.writes.length, 0, 'nothing sent while the other tab writes');
+  free();
+  await drive(t, sending, other);
+  assert.equal(log.writes.length, 1);
+});
+
+test('after waiting for the renewal lock, a renewal another tab finished is reused, not repeated', async t => {
+  const { locks } = useLocks(t);
+  login(Date.now() - 1000); // expired
+  const log = server(t, { tokenReply: () => reply(200, FRESH) });
+  let free;
+  const other = locks.request('animetro.simkl.renew', () => new Promise(r => { free = r; }));
+  while (!free) await settle();
+  const library = simklLibrary();
+  for (let i = 0; i < 20; i++) await settle();
+  // the other tab's renewal lands, then it lets go of the lock
+  localStorage.setItem(TOKEN, JSON.stringify({ access: 'theirs', refresh: 'r9', expires: Date.now() + 7 * 864e5 }));
+  free();
+  await Promise.all([library, other]);
+  assert.equal(log.tokens, 0);
+  assert.deepEqual(log.gets, ['theirs']);
+});
+
+test('writes and renewals ask for the shared Web Locks by name', async t => {
+  login(Date.now() - 1000);
+  localStorage.removeItem(WROTE);
+  const { requests: names } = useLocks(t);
+  clock(t);
+  server(t, { tokenReply: () => reply(200, FRESH) });
+  await drive(t, send(PLAN(1)));
+  assert.deepEqual(names, ['animetro.simkl.write', 'animetro.simkl.renew']);
+});
+
+test('a 429 retry sends the token another tab renewed during the wait, without renewing itself', async t => {
+  useLocks(t);
+  login(Date.now() + 3600e3); // due, so a renewal would happen if the retry asked for one
+  const seen = [];
+  t.mock.method(globalThis, 'fetch', async (url, opt) => {
+    if (String(url).includes('/oauth2/token')) { seen.push('token'); return reply(503); }
+    seen.push(opt.headers.Authorization.replace('Bearer ', ''));
+    if (seen.length === 2) { // the first API answer: 429, and meanwhile the other tab renews
+      localStorage.setItem(TOKEN, JSON.stringify({ access: 'theirs', refresh: 'r9', expires: Date.now() + 7 * 864e5 }));
+      return reply(429, {}, SLOW);
+    }
+    return reply(200, { anime: [] });
+  });
+  await simklLibrary();
+  assert.deepEqual(seen, ['token', 'old', 'theirs']);
+});
+
+// Leaving while a write waits its turn: nothing may go out with the old credentials.
+for (const [what, leave] of [['Disconnect', () => simklDisconnect()], ['turning sync off', () => setSyncOn(false)], ['clearing the client ID', () => setSimklClient('')]]) {
+  test(`${what} during the one-second write wait sends nothing`, async t => {
+    useLocks(t);
+    login();
+    clock(t);
+    localStorage.setItem(WROTE, String(Date.now())); // a write just went out, so the next one waits
+    const log = server(t);
+    const sending = send(PLAN(1));
+    for (let i = 0; i < 50; i++) { await settle(); t.mock.timers.tick(10); } // half the wait
+    assert.equal(log.writes.length, 0);
+    leave();
+    await assert.rejects(drive(t, sending), /Connect Simkl first/);
+    assert.equal(log.writes.length, 0);
+  });
+}
+
+test('Disconnect while another tab holds the write lock sends nothing', async t => {
+  const { locks } = useLocks(t);
+  login();
+  localStorage.removeItem(WROTE);
+  clock(t);
+  const log = server(t);
+  let free;
+  const other = locks.request('animetro.simkl.write', () => new Promise(r => { free = r; }));
+  while (!free) await settle();
+  const sending = send(PLAN(1));
+  for (let i = 0; i < 20; i++) await settle();
+  simklDisconnect();
+  free();
+  await other;
+  await assert.rejects(drive(t, sending), /Connect Simkl first/);
+  assert.equal(log.writes.length, 0);
+});
+
+for (const locks of [true, false]) {
+  test(`a slow renewal doesn't use up the gap before the next write, ${locks ? 'with' : 'without'} Web Locks`, async t => {
+    if (locks) useLocks(t); else noLocks(t);
+    login(Date.now() - 1000); // expired: the first write renews first, and Simkl takes 1.3s to answer that
+    localStorage.removeItem(WROTE);
+    clock(t);
+    const log = server(t, { tokenReply: () => reply(200, FRESH), tokenDelay: 1300 });
+    await drive(t, send(PLAN(1)), send(PLAN(2)), send(PLAN(3)));
+    assert.equal(log.tokens, 1);
+    assert.equal(log.writes.length, 3);
+    for (let i = 1; i < 3; i++) assert.ok(log.writes[i] - log.writes[i - 1] >= 1100, `gap ${log.writes[i] - log.writes[i - 1]}ms`);
+    assert.equal(+localStorage.getItem(WROTE), log.writes[2], 'the shared time is when the last write went out');
+  });
+}
