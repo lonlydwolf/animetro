@@ -1,5 +1,5 @@
 import { gql, me, title, plainText, listStatus, saveEntries, CARD, prefs, inApp, store } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, countdown, cards, toast, fail, listNote, adultGate, nsfw, safeUrl, safeColor, cover, tint } from './ui.js';
 import { siteLinks } from './streams.js';
 import { chime } from './chime.js';
 import { finishOdds } from './odds.js';
@@ -33,12 +33,12 @@ const Q = `query($id:Int){ Media(id:$id,type:ANIME){
   relations{edges{relationType(version:2)}}
 }}`;
 
-let media, entry, user;
+let media, entry, user, meError; // meError: who you are couldn't be read, so the page is read-only
 
 async function boot() {
   if (!id) { location.href = 'index.html'; return; }
   const status = listStatus([id]); // needs only the rider and the id, so it runs alongside the media request (never rejects)
-  [media, user] = await Promise.all([gql(Q, { id }).then(d => d.Media), me()]);
+  [media, user] = await Promise.all([gql(Q, { id }).then(d => d.Media), me().catch(e => { meError = e; return null; })]);
   const m = media;
   if (m.isAdult && !prefs.adult()) {
     $('#page').innerHTML = `<section class="fy-hero"><span class="roundel" style="border-color:var(--marunouchi)">18</span><h1 style="margin-top:16px">This stop is 18+</h1>
@@ -198,6 +198,7 @@ function row(k, v) { return v && !String(v).startsWith('undefined') ? `<dt>${k}<
 
 function renderListControls() {
   const el = $('#list-ctl');
+  if (meError) { el.innerHTML = listNote(meError); return; }
   if (!user) { el.innerHTML = '<a class="btn ghost" href="pass.html">Connect AniList to track</a>'; return; }
   if (!user.canWrite) { el.innerHTML = entry ? `<span class="tag s-${esc(entry.status)}">${STATUS[entry.status]}, ep ${entry.progress}</span>` : ''; return; }
   // total = episodes out so far; only a known final count can complete the show

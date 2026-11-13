@@ -1,5 +1,5 @@
 import { gql, title, listStatus, me, saveEntries, rankSearch, prefs, adultArg, inApp } from './api.js';
-import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, nsfw, cover, tint, safeUrl } from './ui.js';
+import { header, $, esc, qs, FORMAT, STATUS, minutes, toast, countdown, fail, listNote, nsfw, cover, tint, safeUrl } from './ui.js';
 import { crawl, classify, storyOrder, byDate, ROLE, service, junctions } from './order.js';
 import { lineCard, showCard } from './share.js';
 
@@ -107,8 +107,9 @@ function render() {
     : list.size ? 'You have ridden the whole line. Nice.' : '';
   $('#perday-val').textContent = view.perDay;
 
-  $('#progress').hidden = !list.size;
-  if (list.size) {
+  $('#progress').hidden = !list.size && !data.meError;
+  if (data.meError) $('#progress').innerHTML = listNote(data.meError);
+  else if (list.size) {
     const pct = totalMin ? Math.round((visited / totalMin) * 100) : 0;
     $('#progress').innerHTML = `
       <div class="bar"><i style="width:${pct}%"></i></div>
@@ -170,8 +171,9 @@ async function boot() {
   const graph = await crawl(id, fetchMany, n => ($('#found').textContent = `${n} stop${n === 1 ? '' : 's'} found`));
   const { stops, transfers, anchor } = classify(id, graph, { adult: prefs.adult() });
   stops.forEach(m => (m.svc = service(m, anchor)));
-  const [user, list] = await Promise.all([me(), listStatus([...stops, ...transfers].map(m => m.id))]);
-  data = { stops, transfers, anchor, list, user, capped: graph.capped };
+  let meError; // who you are couldn't be read: the line still shows, without your progress or save buttons
+  const [user, list] = await Promise.all([me().catch(e => { meError = e; return null; }), listStatus([...stops, ...transfers].map(m => m.id))]);
+  data = { stops, transfers, anchor, list, user, meError, capped: graph.capped };
 
   if (tint(anchor, '')) document.documentElement.style.setProperty('--cover', tint(anchor, ''));
   document.title = `${title(anchor)} watch order · Animetro`;
