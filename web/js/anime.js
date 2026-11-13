@@ -68,10 +68,10 @@ async function boot() {
           <div class="facts">
             ${m.averageScore ? `<span class="tag">${m.averageScore}% score</span>` : ''}
             ${m.isAdult ? '<span class="tag" style="background:var(--marunouchi);color:#fff">18+</span>' : ''}
-            <span class="tag">${FORMAT[m.format] || cap(m.format)}</span>
+            <span class="tag">${FORMAT[m.format] || esc(cap(m.format))}</span>
             ${m.episodes ? `<span class="tag">${m.episodes} episodes${m.duration ? ` of ${m.duration} min` : ''}</span>` : ''}
-            ${m.season ? `<span class="tag">${cap(m.season)} ${m.seasonYear}</span>` : ''}
-            <span class="tag">${cap(m.status)}</span>
+            ${m.season ? `<span class="tag">${esc(cap(m.season))} ${esc(m.seasonYear)}</span>` : ''}
+            <span class="tag">${esc(cap(m.status))}</span>
             ${m.genres.map(g => `<a class="tag" href="explore.html?genres=${encodeURIComponent(g)}" style="text-decoration:none">${esc(g)}</a>`).join('')}
           </div>
           <div class="actions">
@@ -107,7 +107,7 @@ async function boot() {
         ${m.characters.edges.length ? `<section><h2>Cast</h2><p class="hint">Characters and their Japanese voice actors.</p>
           <div class="cast">${m.characters.edges.map(e => `
             <div class="cast-row">
-              <div><img src="${safeUrl(e.node.image?.medium)}" alt="" loading="lazy"><span><b>${esc(e.node.name.full)}</b><small>${cap(e.role)}</small></span></div>
+              <div><img src="${safeUrl(e.node.image?.medium)}" alt="" loading="lazy"><span><b>${esc(e.node.name.full)}</b><small>${esc(cap(e.role))}</small></span></div>
               ${e.voiceActors[0] ? `<div><img src="${safeUrl(e.voiceActors[0].image?.medium)}" alt="" loading="lazy"><span><b>${esc(e.voiceActors[0].name.full)}</b><small>Voice</small></span></div>` : ''}
             </div>`).join('')}</div></section>` : ''}
       </div>
@@ -125,7 +125,7 @@ async function boot() {
           ${row('Popularity', m.popularity?.toLocaleString() + ' users')}
           ${row('Favourites', m.favourites?.toLocaleString())}
         </dl>
-        ${ranks.length ? `<div>${ranks.map(r => `<div class="rank"><b>#${r.rank}</b><span>${cap(r.context)}${r.season ? ` (${cap(r.season)} ${r.year})` : r.year ? ` (${r.year})` : ''}</span></div>`).join('')}</div>` : ''}
+        ${ranks.length ? `<div>${ranks.map(r => `<div class="rank"><b>#${r.rank}</b><span>${esc(cap(r.context))}${r.season ? ` (${esc(cap(r.season))} ${esc(r.year)})` : r.year ? ` (${esc(r.year)})` : ''}</span></div>`).join('')}</div>` : ''}
         ${dist.length ? `<div><h3>Score spread</h3><p></p>
           <div class="dist">${dist.map(d => `<i style="height:${(d.amount / maxAmt) * 100}%" title="${d.score}: ${d.amount.toLocaleString()} users"></i>`).join('')}</div>
           <div class="dist-labels"><span>10</span><span>100</span></div></div>` : ''}
@@ -193,7 +193,7 @@ function row(k, v) { return v && !String(v).startsWith('undefined') ? `<dt>${k}<
 function renderListControls() {
   const el = $('#list-ctl');
   if (!user) { el.innerHTML = '<a class="btn ghost" href="pass.html">Connect AniList to track</a>'; return; }
-  if (!user.canWrite) { el.innerHTML = entry ? `<span class="tag s-${entry.status}">${STATUS[entry.status]}, ep ${entry.progress}</span>` : ''; return; }
+  if (!user.canWrite) { el.innerHTML = entry ? `<span class="tag s-${esc(entry.status)}">${STATUS[entry.status]}, ep ${entry.progress}</span>` : ''; return; }
   // total = episodes out so far; only a known final count can complete the show
   const total = media.episodes || (media.nextAiringEpisode ? media.nextAiringEpisode.episode - 1 : 0), final = media.episodes || 0;
   el.innerHTML = `
