@@ -34,6 +34,7 @@ let media, entry, user;
 
 async function boot() {
   if (!id) { location.href = 'index.html'; return; }
+  const status = listStatus([id]); // needs only the rider and the id, so it runs alongside the media request (never rejects)
   [media, user] = await Promise.all([gql(Q, { id }).then(d => d.Media), me()]);
   const m = media;
   if (m.isAdult && !prefs.adult()) {
@@ -43,7 +44,7 @@ async function boot() {
     $('#gate-open').onclick = adultGate;
     return;
   }
-  entry = (await listStatus([id])).get(id);
+  entry = (await status).get(id);
   document.title = `${title(m)} · Animetro`;
   if (tint(m, '')) document.documentElement.style.setProperty('--cover', tint(m, ''));
 
