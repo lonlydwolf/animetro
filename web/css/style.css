@@ -893,6 +893,10 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
   box-shadow: inset 0 0 0 1px var(--rail); animation: board .28s ease-out;
 }
 @keyframes board { from { opacity: 0; transform: translateX(36px); } }
+/* the card slides in from 36px right: clip that here, so the page never widens while it moves (WebKit and
+   Chromium both count a moving child in the page width despite body's clip). Room for the poster's shadow
+   and focus rings, inside main's 20px gutter. */
+.rate-stage { overflow-x: clip; margin-inline: -12px; padding-inline: 12px; }
 .rate-poster img { width: 100%; aspect-ratio: 23 / 33; object-fit: cover; border-radius: 14px; box-shadow: 0 0 0 4px var(--c), 0 18px 40px #0006; }
 .rate-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .rate-meta { margin: 0; color: var(--dim); font-weight: 700; font-size: .9rem; }
