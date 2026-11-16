@@ -851,6 +851,26 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .local { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--tunnel); border-radius: 10px; text-decoration: none; font-size: .86rem; min-width: 0; box-shadow: inset 3px 0 0 var(--c); }
 .local span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .local:hover { color: var(--platform); }
+/* shared carriage: a friend's map over yours */
+.carriage { margin-top: 22px; max-width: 760px; }
+.carriage-form label { display: block; font-weight: 700; margin-bottom: 8px; }
+.carriage-form .inline-form { max-width: 480px; }
+.carriage-form .hint { margin: 8px 0 0; }
+.carriage-error { margin: 8px 0 0; color: color-mix(in srgb, var(--marunouchi) 45%, var(--ink)); font-size: .9rem; }
+.linkish { border: 0; padding: 0; background: none; color: var(--ink); text-decoration: underline; cursor: pointer; font-weight: 700; }
+.carriage-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; background: var(--tunnel); border-radius: 18px; padding: 16px 18px; }
+.carriage-who { margin: 0; font-size: 1.05rem; min-width: 0; overflow-wrap: anywhere; }
+.carriage-who span { color: var(--dim); margin: 0 4px; }
+.carriage-leave { padding: 6px 14px; font-size: .86rem; }
+.carriage-body { grid-column: 1 / -1; min-width: 0; }
+.carriage-body > .hint { margin: 0; }
+/* two cars and the coupling between them */
+.coupled { display: flex; align-items: center; }
+.coupled i { width: 18px; height: 6px; margin: 0 -2px; background: repeating-linear-gradient(90deg, var(--dim) 0 4px, transparent 4px 7px); }
+.car-face { width: 42px; height: 42px; border-radius: 12px; background: var(--rail) center / cover; box-shadow: 0 0 0 3px var(--platform); }
+.coupled .car-face:last-child { box-shadow: 0 0 0 3px var(--led); }
+.loading-car .coupled i { animation: couple 1s ease-in-out infinite alternate; }
+@keyframes couple { to { width: 30px; } }
 
 /* ---------- watch history ---------- */
 .heat-wrap { display: inline-grid; gap: 6px; max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
