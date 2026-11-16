@@ -6,6 +6,7 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ### Added
 - Ticket stubs (`tickets.html`): every show you've completed becomes a ticket stub in an album, grouped by the year you finished it. A stub shows the show as a line in its cover color, episode 1 to its last (opening to end credits for a movie), the dates you boarded and arrived, ride time, your score in your own AniList score format, a stamp for rewatches, and its number: your nth completed show. Shows without a finish date get their own group. **Share** saves a stub as an image. Linked from My pass and History; nothing new is stored.
+- Year on the rails (on History): a year in review, loaded when you ask, from that year's entire AniList activity feed so the numbers are exact. Episodes and time ridden, your busiest line, your longest streak, the studio districts you rode for the first time, shows completed, the busiest month as a line of twelve month stations, and your first and last ride. Pick this year, last year or any earlier year you have activity in; a progress bar shows how far back it has read, and switching years mid-load keeps them apart. A batch of completions logged in one go (an import or a sync) is pointed out. **Share poster** saves the year as an image. Nothing new is stored.
 
 ## [1.2.0] - 2026-11-14
 
