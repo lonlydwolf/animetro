@@ -1,8 +1,9 @@
 // Ticket stubs: every show you've completed as a ticket stub, grouped by the year you arrived. The stubs come from
 // your AniList list (see stubs.js); nothing is stored.
 import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, fail, cover, tint, nsfw, minutes, FORMAT } from './ui.js';
-import { stubs, album, serial } from './stubs.js';
+import { header, $, esc, fail, cover, tint, nsfw, minutes, FORMAT, safeUrl } from './ui.js';
+import { stubs, album, serial, ordinal } from './stubs.js';
+import { stubCard, showCard } from './share.js';
 
 header();
 const page = $('#page');
@@ -56,6 +57,8 @@ function render(user, list) {
     </section>`).join('') || `<section><p class="empty">No completed shows on your list yet. Finish one and its stub turns up here.</p></section>`}`;
 
   page.addEventListener('click', e => {
+    const share = e.target.closest('[data-share]');
+    if (share) return shareStub(user, byId.get(+share.dataset.share));
     const more = e.target.closest('[data-more]');
     if (more) {
       const g = groups.find(x => String(x.year ?? '') === more.dataset.more);
@@ -65,12 +68,14 @@ function render(user, list) {
   });
 }
 
+const kindOf = s => [FORMAT[s.media.format], s.route.single ? '' : s.route.stops ? `${s.route.stops} stops` : ''].filter(Boolean).join(' · ');
+// the stamp prints 再 ("again") and how many times; the words are for screen readers and on hover
+const rewatchOf = s => (s.rewatch.now ? ['Now', 'Riding it again now'] : s.rewatch.count
+  ? [s.rewatch.count > 1 ? `×${s.rewatch.count}` : 'Again', `Rewatched ${s.rewatch.count === 1 ? 'once' : `${s.rewatch.count} times`}`] : null);
+const rideOf = s => (s.ride.minutes ? `${s.ride.estimated ? '~' : ''}${minutes(s.ride.minutes)}` : '');
+
 function stub(s) {
-  const m = s.media, name = title(m);
-  const kind = [FORMAT[m.format], s.route.single ? '' : s.route.stops ? `${s.route.stops} stops` : ''].filter(Boolean).join(' · ');
-  // the stamp prints 再 ("again") and how many times; the words are for screen readers and on hover
-  const rewatch = s.rewatch.now ? ['Now', 'Riding it again now'] : s.rewatch.count
-    ? [s.rewatch.count > 1 ? `×${s.rewatch.count}` : 'Again', `Rewatched ${s.rewatch.count === 1 ? 'once' : `${s.rewatch.count} times`}`] : null;
+  const m = s.media, name = title(m), kind = kindOf(s), rewatch = rewatchOf(s);
   return `
     <article class="stub${nsfw(m)}" style="--cover:${tint(m, 'var(--platform)')}" aria-label="${esc(`Stub ${s.no}: ${name}`)}"><div class="stub-paper">
       <div class="stub-main">
@@ -84,7 +89,7 @@ function stub(s) {
         <dl class="stub-facts">
           <div><dt>Boarded</dt><dd>${s.boarded ? esc(s.boarded.text) : '—'}</dd></div>
           <div><dt>Arrived</dt><dd>${s.arrived ? esc(s.arrived.text) : '—'}</dd></div>
-          <div><dt>Ride time</dt><dd>${s.ride.minutes ? `${s.ride.estimated ? '~' : ''}${minutes(s.ride.minutes)}` : '—'}${s.days ? `<small> in ${s.days} ${s.days === 1 ? 'day' : 'days'}</small>` : ''}</dd></div>
+          <div><dt>Ride time</dt><dd>${rideOf(s) || '—'}${s.days ? `<small> in ${s.days} ${s.days === 1 ? 'day' : 'days'}</small>` : ''}</dd></div>
         </dl>
         ${rewatch ? `<span class="stub-stamp" title="${rewatch[1]}"><b lang="ja" aria-hidden="true">再</b><span aria-hidden="true">${rewatch[0]}</span><span class="sr-only">${rewatch[1]}</span></span>` : ''}
       </div>
@@ -93,8 +98,21 @@ function stub(s) {
         <p class="stub-score"><small>Your score</small>${s.score
           ? `<b aria-hidden="true">${esc(s.score.text)}</b>${s.score.out ? `<span aria-hidden="true">${s.score.out}</span>` : ''}<span class="sr-only">${esc(s.score.label)}</span>`
           : '<b class="none" aria-hidden="true">—</b><span>not rated</span>'}</p>
+        <button class="stub-share" type="button" data-share="${m.id}" aria-label="${esc(`Share the stub for ${name}`)}">Share</button>
       </div>
     </div></article>`;
+}
+
+// The stub as a picture. An 18+ cover stays off the picture while 18+ covers are blurred.
+function shareStub(user, s) {
+  if (!s) return;
+  const m = s.media, name = title(m), hide = m.isAdult && prefs.blur();
+  showCard(() => stubCard({
+    no: serial(s.no), nth: ordinal(s.no), name, color: tint(m, '#ffd23f'), cover: hide ? null : safeUrl(m.coverImage?.large) ? m.coverImage.large : '', adult: m.isAdult,
+    kind: kindOf(s), origin: s.route.origin, terminus: s.route.terminus, single: s.route.single,
+    boarded: s.boarded?.text, arrived: s.arrived?.text, ride: rideOf(s), days: s.days, score: s.score,
+    rewatch: rewatchOf(s)?.[0] ?? null, rider: user.name,
+  }), `${name}-stub-${serial(s.no)}.png`);
 }
 
 boot().catch(e => fail(page, e));

@@ -1,4 +1,4 @@
-// Share cards: a watch-order line or your pass, drawn on a canvas as a 1200x675 image you can save,
+// Share cards: a watch-order line, your pass or a ticket stub, drawn on a canvas as a 1200x675 image you can save,
 // copy, or share. No libraries; AniList's image server allows canvas export (it sends CORS headers;
 // the Mac app proxies pictures instead, see img below).
 import { toast, safeFilename } from './ui.js';
@@ -8,6 +8,7 @@ const W = 1200, H = 675;
 const C = { night: '#131833', tunnel: '#1c2346', rail: '#2d3768', ink: '#eef1fa', dim: '#9aa3c7', platform: '#ffd23f' };
 const DISPLAY = '"Dela Gothic One", "Zen Kaku Gothic New", system-ui, sans-serif';
 const BODY = '"Zen Kaku Gothic New", system-ui, sans-serif';
+const DOT = '"DotGothic16", ui-monospace, monospace';
 
 const img = src => new Promise(res => {
   if (!src) return res(null);
@@ -177,6 +178,127 @@ export async function passCard(p) {
     g.fillText(s.k, x, y + 1); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   });
   footer(g);
+  return c;
+}
+
+// ---- ticket stub -------------------------------------------------------------
+// stub: { no, name, color, cover, kind, origin, terminus, single, boarded, arrived, ride, days, score: { text, out } | null,
+//   rewatch: 'Again' | '×2' | 'Now' | null, rider, nth: '455th' }
+// no is the printed serial ('0455').
+// cover is null for an 18+ show while 18+ covers are blurred: the card leaves the picture out rather than show it.
+const PAPER = '#f3eee0', PRINT = '#131833', FAINT = '#5d6283', SERIAL = '#b3101f';
+// mix a #rrggbb color toward another, like CSS color-mix (canvas can't be trusted to parse color-mix itself)
+function mix(a, b, t) {
+  const n = h => (h.length === 4 ? [...h.slice(1)].map(c => parseInt(c + c, 16)) : [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const [x, y] = [n(a), n(b)];
+  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(',')})`;
+}
+export async function stubCard(s) {
+  await ready();
+  const [c, g] = canvas();
+  const pic = await img(s.cover);
+  const base = /^#([0-9a-f]{3}){1,2}$/i.test(s.color) ? s.color : C.platform;
+  const line = mix(base, PRINT, .18); // pale covers still show on paper
+  g.fillStyle = C.night; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W / 2, 290, 40, W / 2, 290, 620);
+  glow.addColorStop(0, mix(base, C.night, .55)); glow.addColorStop(1, C.night);
+  g.globalAlpha = .55; g.fillStyle = glow; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+
+  // the paper, tilted a little like a stub dropped on a table
+  const x = 70, y = 56, w = 1060, h = 486, tail = 270, cut = x + w - tail;
+  g.save();
+  g.translate(W / 2, y + h / 2); g.rotate(-.012); g.translate(-W / 2, -(y + h / 2));
+  g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 40; g.shadowOffsetY = 16;
+  g.fillStyle = PAPER; rrect(g, x, y, w, h, 22); g.fill();
+  g.shadowColor = 'transparent';
+  g.save(); rrect(g, x, y, w, h, 22); g.clip();
+  g.strokeStyle = line; g.globalAlpha = .07; g.lineWidth = 2; // security print
+  for (let i = -h; i < w; i += 12) { g.beginPath(); g.moveTo(x + i, y + h); g.lineTo(x + i + h, y); g.stroke(); }
+  g.globalAlpha = .09; g.fillStyle = line; g.fillRect(cut, y, tail, h); g.globalAlpha = 1;
+  g.fillStyle = line; g.fillRect(x, y, w, 18); // the line color across the top
+  g.restore();
+  // notches at the tear line, then the perforation
+  g.fillStyle = C.night;
+  for (const ny of [y, y + h]) { g.beginPath(); g.arc(cut, ny, 18, 0, Math.PI * 2); g.fill(); }
+  g.strokeStyle = 'rgba(19,24,51,.3)'; g.lineWidth = 3; g.setLineDash([9, 9]);
+  g.beginPath(); g.moveTo(cut, y + 26); g.lineTo(cut, y + h - 26); g.stroke(); g.setLineDash([]);
+
+  // header row
+  const mx = x + 44, mw = cut - mx - 40;
+  g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+  g.fillStyle = PRINT; g.font = `24px ${DISPLAY}`; g.fillText('Animetro', mx, y + 70);
+  const bw = g.measureText('Animetro').width;
+  g.fillStyle = FAINT; g.font = `700 17px ${BODY}`; g.fillText(s.kind.toUpperCase(), mx + bw + 18, y + 69);
+  g.fillStyle = SERIAL; g.font = `26px ${DOT}`; g.textAlign = 'right'; g.fillText(`No. ${s.no}`, cut - 40, y + 70); g.textAlign = 'left';
+
+  // title
+  // a long name steps down a size before it gets cut short
+  const room = mw - (s.rewatch ? 110 : 0);
+  g.fillStyle = PRINT; g.font = `50px ${DISPLAY}`;
+  if (lines(g, s.name, room, 3).length > 2) g.font = `40px ${DISPLAY}`;
+  const lh = g.font.startsWith('50') ? 58 : 48;
+  const title = lines(g, s.name, room, 2);
+  title.forEach((t, i) => g.fillText(t, mx, y + 140 + i * lh));
+  const ty = y + 140 + (title.length - 1) * lh;
+
+  // origin ── terminus
+  const ry = ty + 92;
+  g.fillStyle = FAINT; g.font = `700 15px ${BODY}`; g.fillText('FROM', mx, ry - 40);
+  g.textAlign = 'right'; g.fillText('TO', cut - 40, ry - 40);
+  g.fillStyle = PRINT; g.font = `30px ${DISPLAY}`; g.fillText(s.terminus, cut - 40, ry); g.textAlign = 'left';
+  g.fillText(s.origin, mx, ry);
+  const a = mx + g.measureText(s.origin).width + 34, b = cut - 40 - g.measureText(s.terminus).width - 34, my = ry - 11;
+  g.lineCap = 'round'; g.strokeStyle = line; g.lineWidth = 12;
+  if (s.single) g.setLineDash([20, 12]);
+  g.beginPath(); g.moveTo(a, my); g.lineTo(b, my); g.stroke(); g.setLineDash([]);
+  for (const [px, fill] of [[a, PAPER], [b, line]]) {
+    g.beginPath(); g.arc(px, my, 14, 0, Math.PI * 2); g.fillStyle = fill; g.fill(); g.lineWidth = 7; g.strokeStyle = line; g.stroke();
+  }
+
+  // the facts, printed like a ticket machine would
+  const fy = y + h - 104;
+  g.strokeStyle = 'rgba(19,24,51,.3)'; g.lineWidth = 2; g.setLineDash([5, 6]);
+  g.beginPath(); g.moveTo(mx, fy - 30); g.lineTo(cut - 40, fy - 30); g.stroke(); g.setLineDash([]);
+  const facts = [['BOARDED', s.boarded || '—'], ['ARRIVED', s.arrived || '—'], ['RIDE TIME', s.ride || '—']];
+  facts.forEach(([k, v], i) => {
+    const fx = mx + i * (mw / 3);
+    g.fillStyle = FAINT; g.font = `700 15px ${BODY}`; g.fillText(k, fx, fy);
+    g.fillStyle = PRINT; g.font = `28px ${DOT}`; g.fillText(v, fx, fy + 40);
+  });
+  if (s.days) { g.fillStyle = FAINT; g.font = `500 17px ${BODY}`; g.fillText(`in ${s.days} ${s.days === 1 ? 'day' : 'days'}`, mx + 2 * (mw / 3), fy + 68); }
+
+  // 再: a round station stamp for a rewatch
+  if (s.rewatch) {
+    g.save(); g.translate(cut - 96, y + 150); g.rotate(-.25); g.globalAlpha = .85;
+    g.strokeStyle = SERIAL; g.fillStyle = SERIAL;
+    g.lineWidth = 4; g.beginPath(); g.arc(0, 0, 50, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 42, 0, Math.PI * 2); g.stroke();
+    g.textAlign = 'center'; g.font = `40px ${DISPLAY}`; g.fillText('再', 0, 8);
+    g.font = `700 14px ${BODY}`; g.fillText(s.rewatch.toUpperCase(), 0, 30);
+    g.restore();
+  }
+
+  // the tail: cover and score
+  const tx = cut + tail / 2, cw = 160, ch = 228, cy = y + 56;
+  g.fillStyle = line; rrect(g, tx - cw / 2 - 7, cy - 7, cw + 14, ch + 14, 14); g.fill();
+  g.fillStyle = PAPER; rrect(g, tx - cw / 2 - 3, cy - 3, cw + 6, ch + 6, 11); g.fill();
+  g.save(); rrect(g, tx - cw / 2, cy, cw, ch, 9); g.clip();
+  g.fillStyle = mix(PAPER, PRINT, .12); g.fillRect(tx - cw / 2, cy, cw, ch);
+  if (pic) cover(g, pic, tx - cw / 2, cy, cw, ch);
+  else { g.fillStyle = FAINT; g.font = `30px ${DISPLAY}`; g.textAlign = 'center'; g.fillText(s.cover === null && s.adult ? '18+' : '?', tx, cy + ch / 2 + 10); }
+  g.restore();
+  g.textAlign = 'center';
+  g.fillStyle = FAINT; g.font = `700 15px ${BODY}`; g.fillText('YOUR SCORE', tx, cy + ch + 46);
+  g.fillStyle = s.score ? PRINT : FAINT; g.font = `${s.score?.text.length > 4 ? 40 : 56}px ${DISPLAY}`;
+  g.fillText(s.score ? s.score.text : '—', tx, cy + ch + 106);
+  g.fillStyle = FAINT; g.font = `700 18px ${BODY}`; g.fillText(s.score ? s.score.out : 'not rated', tx, cy + ch + 134);
+  g.textAlign = 'left';
+  g.restore();
+
+  footer(g);
+  g.fillStyle = C.dim; g.font = `500 17px ${BODY}`; g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.fillText(`${s.rider}'s ${s.nth} completed show`, W - 70, H - 42);
+  g.textAlign = 'left';
   return c;
 }
 

@@ -1009,6 +1009,11 @@ kbd { font: 700 .7rem var(--body); color: var(--dim); padding: 0 6px; border-rad
 .stub-score b { font: 400 1.45rem/1.15 var(--display); white-space: nowrap; }
 .stub-score b.none { color: var(--faint); }
 .stub-score span { font-size: .7rem; font-weight: 700; color: var(--faint); }
+.stub-share {
+  margin-top: auto; padding: 4px 14px; border-radius: 99px; border: 0; cursor: pointer; background: none;
+  color: var(--print); font: 700 .8rem var(--body); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--print) 45%, transparent);
+}
+.stub-share:hover, .stub-share:focus-visible { background: var(--print); color: var(--paper); box-shadow: none; }
 @media (max-width: 600px) {
   .stub { --tail: 98px; }
   .stub-main { padding: 0 14px 14px; }

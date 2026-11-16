@@ -115,3 +115,9 @@ export function album(list) {
 
 // Stub numbers print with at least four digits, like a ticket's serial: No. 0042.
 export const serial = no => String(no).padStart(4, '0');
+
+// 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st: "your 214th completed show".
+export function ordinal(n) {
+  const tens = n % 100, ones = n % 10;
+  return `${n}${tens >= 11 && tens <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][ones] || 'th'}`;
+}
