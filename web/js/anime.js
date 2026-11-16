@@ -9,6 +9,7 @@ import { recapMode, recapPanel } from './recap.js';
 import { youtubeId } from './trailer.js';
 import { memo } from './memo.js';
 import { saveChecked, riderList, notSaved } from './plan.js';
+import { jinglesOn, setJingles, onJinglesChange, findThemes, pickSource, withoutOgg, unplayable, lengthTrusted } from './jingles.js';
 
 header();
 const id = +qs().get('id');
@@ -107,6 +108,8 @@ async function boot() {
         ${vibes.length ? `<section><h2>Vibe check</h2><p class="hint">How strongly AniList users say each tag applies.${spoilers ? ` <button class="spoiler-btn" id="spoil">Show ${spoilers} spoiler tag${spoilers > 1 ? 's' : ''}</button>` : ''}</p>
           <div class="vibes" id="vibes">${vibes.map(vibe).join('')}</div></section>` : ''}
 
+        <section class="jingles" id="jingles" aria-labelledby="jingles-h"></section>
+
         ${yt ? `<section><h2>Trailer</h2><p></p>
           ${inApp // YouTube embeds refuse to play inside apps, so the app shows the thumbnail and opens YouTube
             ? `<a class="trailer trailer-link" href="https://www.youtube.com/watch?v=${yt}" target="_blank" rel="noopener" style="background-image:url(https://i.ytimg.com/vi/${yt}/hqdefault.jpg)"><span>▶ Watch on YouTube</span></a>`
@@ -151,6 +154,7 @@ async function boot() {
     e.target.remove();
   });
   renderListControls();
+  jingles();
   recap(qs().get('recap') === '1');
   if (hasEps) tab(qs().get('tab') === 'episodes' && qs().get('recap') !== '1' ? 'episodes' : 'overview', false); // a recap link opens Overview
   odds().catch(() => {}); // a nice-to-have: stay quiet if it fails
@@ -260,6 +264,168 @@ document.addEventListener('click', e => {
   recap(true);
   $('#recap-h')?.focus?.();
 });
+
+// ---- Opening jingles (jingles.js) --------------------------------------------
+// The show's openings and endings from AnimeThemes. While Opening jingles is off the panel only says what turning it
+// on does: nothing is asked of AnimeThemes and no audio element exists. One <audio> for the page, so only one theme
+// plays at a time. It plays Ogg where the browser can, else the WebM video's sound (pickSource).
+const jg = { gen: 0, themes: [], audio: null, key: '', kind: '' };
+const ICON = {
+  play: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.2" fill="currentColor"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2" fill="currentColor"/></svg>',
+};
+const canPlay = t => (jg.audio || document.createElement('audio')).canPlayType(t);
+const mmss = s => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '-:--');
+const playing = () => jg.themes.find(t => t.key === jg.key);
+const quizLink = '<a class="jingle-quiz" href="quiz.html">Name that opening <span aria-hidden="true">→</span></a>';
+const jinglesHead = `<div class="section-head"><h2 id="jingles-h">Themes</h2>${quizLink}</div>`;
+
+async function jingles() {
+  const el = $('#jingles');
+  if (!el) return;
+  const gen = ++jg.gen;
+  if (!jinglesOn()) {
+    stopJingle();
+    jg.themes = [];
+    el.className = 'jingles off';
+    el.innerHTML = `<div class="jingle-offer">
+      <span class="jingle-note" aria-hidden="true">♪</span>
+      <div><h2 id="jingles-h">Opening jingles</h2>
+        <p class="hint">Play this show's openings and endings right here, and name that opening from your own list. Turning it on asks <a href="https://animethemes.moe" target="_blank" rel="noopener">AnimeThemes</a> (free, fan-run) for the themes of each show you open, and plays the music from its servers. While it's off, Animetro sends nothing to AnimeThemes.</p>
+        <p class="jingle-actions"><button class="btn" data-jingles="on">Turn on opening jingles</button>${quizLink}</p></div></div>`;
+    return;
+  }
+  el.className = 'jingles';
+  el.innerHTML = `${jinglesHead}<p class="hint" aria-live="polite">Asking AnimeThemes for this show's themes…</p>`;
+  let found;
+  try { found = await findThemes(id); } catch (e) {
+    if (gen !== jg.gen) return;
+    el.innerHTML = `${jinglesHead}<p class="hint">${esc(e.message)} <button class="spoiler-btn" data-jingles="retry">Try again</button></p>${jinglesFoot('')}`;
+    return;
+  }
+  if (gen !== jg.gen) return;
+  jg.themes = found?.themes || [];
+  const site = /^https:\/\/animethemes\.moe\/anime\/[\w-]+$/.test(found?.siteUrl || '') ? found.siteUrl : '';
+  if (!jg.themes.length) {
+    el.innerHTML = `${jinglesHead}<p class="hint">No themes found on AnimeThemes for this show.</p>${jinglesFoot(site)}`;
+    return;
+  }
+  el.innerHTML = `${jinglesHead}
+    <ol class="jingle-list">${jg.themes.map(t => {
+      const can = !!pickSource(t, canPlay), name = t.song || 'Untitled';
+      const eps = t.episodes ? (/^\d+$/.test(t.episodes) ? `Episode ${t.episodes}` : `Episodes ${t.episodes}`) : '';
+      return `<li class="jingle j-${esc(t.type)}" data-key="${esc(t.key)}">
+        <button class="jingle-play" data-play="${esc(t.key)}"${can ? '' : ' disabled title="This browser can\'t play AnimeThemes\' files"'} aria-label="Play ${esc(t.label)}, ${esc(name)}">${ICON.play}</button>
+        <div class="jingle-main">
+          <div class="jingle-name"><span class="jingle-tag">${esc(t.label)}</span>${t.group ? `<span class="tag">${esc(t.group)}</span>` : ''}<b>${esc(name)}</b></div>
+          <small>${esc([t.artists.join(', '), eps].filter(Boolean).join(' · ') || ' ')}</small>
+          <div class="jingle-track" hidden><input type="range" class="jingle-seek" min="0" max="0" step="0.1" value="0" aria-label="Position in ${esc(t.label)}"><span class="jingle-time">0:00</span></div>
+        </div>
+        <span class="jingle-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </li>`;
+    }).join('')}</ol>
+    ${jinglesFoot(site)}`;
+  paintJingles();
+}
+const jinglesFoot = site => `<p class="hint jingle-credit">Themes and music from ${site ? `<a href="${esc(site)}" target="_blank" rel="noopener">this show on AnimeThemes</a>` : '<a href="https://animethemes.moe" target="_blank" rel="noopener">AnimeThemes</a>'}. <button class="spoiler-btn" data-jingles="off">Turn off opening jingles</button></p>`;
+
+// Buttons, playing row and its track follow the audio element, so they're painted from it rather than re-rendered.
+function paintJingles() {
+  const a = jg.audio, on = a && !a.paused && !a.ended;
+  document.querySelectorAll('.jingle').forEach(li => {
+    const t = jg.themes.find(x => x.key === li.dataset.key), active = li.dataset.key === jg.key, b = $('.jingle-play', li);
+    li.classList.toggle('active', active);
+    li.classList.toggle('playing', active && on);
+    b.innerHTML = active && on ? ICON.pause : ICON.play;
+    b.setAttribute('aria-label', `${active && on ? 'Pause' : 'Play'} ${t.label}, ${t.song || 'Untitled'}`);
+    b.setAttribute('aria-pressed', String(active && on));
+    $('.jingle-track', li).hidden = !active;
+  });
+  timeJingle();
+}
+// Where the length can't be trusted (an Ogg file in WebKit: the Mac app, Safari), only the time played so far shows:
+// no seek bar and no total, rather than a bar the song ends halfway along.
+function timeJingle() {
+  const a = jg.audio, li = jg.key && document.querySelector(`.jingle.active`);
+  if (!a || !li) return;
+  const seek = $('.jingle-seek', li), sure = lengthTrusted(jg.kind, navigator.userAgent);
+  seek.hidden = !sure;
+  if (sure && Number.isFinite(a.duration)) seek.max = a.duration;
+  if (sure && !seek.matches(':active')) seek.value = a.currentTime;
+  $('.jingle-time', li).textContent = sure ? `${mmss(a.currentTime)} / ${mmss(a.duration)}` : mmss(a.currentTime);
+}
+
+function audioEl() {
+  if (jg.audio) return jg.audio;
+  const a = (jg.audio = document.createElement('audio'));
+  a.id = 'jingle-audio';
+  a.preload = 'auto';
+  ['play', 'pause', 'playing', 'ended', 'emptied'].forEach(ev => a.addEventListener(ev, paintJingles));
+  ['timeupdate', 'loadedmetadata', 'durationchange'].forEach(ev => a.addEventListener(ev, timeJingle));
+  a.addEventListener('error', () => {
+    const t = playing();
+    if (!t || !a.getAttribute('src')) return;
+    if (!jinglesOn()) return jingles(); // switched off in another tab meanwhile: nothing more is loaded
+    // canPlayType said yes but the Ogg file can't be played here after all: try the video's sound once. A failed
+    // download is only reported: the 40-60 MB video wouldn't come through any better.
+    const next = jg.kind === 'ogg' && unplayable(a.error) && pickSource(t, withoutOgg(canPlay));
+    if (next) { jg.kind = next.kind; a.dataset.kind = next.kind; a.src = next.src; a.play().catch(playFailed); return; }
+    toast(`Couldn't play ${t.label}. AnimeThemes may be busy; try again in a moment.`);
+    stopJingle();
+  });
+  document.body.append(a); // no controls, so it's invisible; the rows are its controls
+  return a;
+}
+// play() refusals the error event doesn't cover: autoplay rules, mostly
+function playFailed(e) {
+  if (e?.name === 'AbortError' || e?.name === 'NotSupportedError') return; // a newer src, or the error event handles it
+  toast("The browser didn't let the theme play. Press play again.");
+}
+function playJingle(key) {
+  if (!jinglesOn()) return jingles(); // switched off in another tab: stop and show the offer instead of loading anything
+  const t = jg.themes.find(x => x.key === key);
+  if (!t) return;
+  const a = audioEl();
+  if (jg.key === key && a.getAttribute('src')) {
+    if (a.paused || a.ended) a.play().catch(playFailed); else a.pause();
+    return;
+  }
+  const s = pickSource(t, canPlay);
+  if (!s) return toast("This browser can't play AnimeThemes' files.");
+  jg.key = key;
+  jg.kind = s.kind;
+  a.dataset.kind = s.kind;
+  a.src = s.src;
+  a.play().catch(playFailed);
+  paintJingles();
+}
+function stopJingle() {
+  const a = jg.audio;
+  jg.key = '';
+  if (!a) return;
+  a.pause();
+  a.removeAttribute('src');
+  a.load(); // stops the download too
+}
+
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-play]');
+  if (p) return playJingle(p.dataset.play);
+  const j = e.target.closest('[data-jingles]');
+  if (!j) return;
+  if (j.dataset.jingles === 'on') { setJingles(true); toast('Opening jingles on. Press play on any theme.'); }
+  if (j.dataset.jingles === 'off') { setJingles(false); toast('Opening jingles off. Nothing more is asked of AnimeThemes.'); }
+  jingles().then(() => $('#jingles [data-play], #jingles [data-jingles]')?.focus());
+});
+document.addEventListener('input', e => {
+  if (!e.target.matches('.jingle-seek') || !jg.audio) return;
+  if (!jinglesOn()) return jingles(); // seeking can load more of the file
+  jg.audio.currentTime = +e.target.value;
+  timeJingle();
+});
+
+// Switched in another tab: off stops the theme and shows the offer; on lists the themes here too.
+onJinglesChange(() => media && jingles());
 
 // ---- Episodes tab ------------------------------------------------------------
 const eps = { view: store.get('animetro.epView') === 'icons' ? 'icons' : 'list', from: 0, gen: 0, rows: null, kid: undefined, streams: null, total: 0, note: '' };
