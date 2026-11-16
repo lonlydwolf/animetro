@@ -4,6 +4,9 @@ All notable changes to Animetro. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Added
+- Ticket stubs (`tickets.html`): every show you've completed becomes a ticket stub in an album, grouped by the year you finished it. A stub shows the show as a line in its cover color, episode 1 to its last (opening to end credits for a movie), the dates you boarded and arrived, ride time, your score in your own AniList score format, a stamp for rewatches, and its number: your nth completed show. Shows without a finish date get their own group. **Share** saves a stub as an image. Linked from My pass and History; nothing new is stored.
+
 ## [1.2.0] - 2026-11-14
 
 ### Added
