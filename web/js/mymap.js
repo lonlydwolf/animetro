@@ -1,7 +1,7 @@
-import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, fail, qs, safeUrl, STATUS } from './ui.js';
+import { gql, me, title, prefs, CARD } from './api.js';
+import { header, $, esc, fail, qs, safeUrl, STATUS, card } from './ui.js';
 import { franchises, districts, lineSvg, marker, ride, rewind, firstYear, STATE, PALETTE } from './map.js';
-import { clean, overlay, riderMarker, apart } from './carriage.js';
+import { clean, overlay, riderMarker, apart, compatibility, rideTogether, STEP, MIN_SHARED, MIN_SCORED } from './carriage.js';
 
 header();
 const page = $('#page');
@@ -14,8 +14,9 @@ let svc = SERVICES[qs().get('stops')] ? qs().get('stops') : 'rapid';
 const NOW = new Date().getFullYear();
 let year = null, playing = null;
 // Shared carriage: a friend's map over yours. The friend lives only in the address (?with=name), never in storage.
-// friend: null, or { name, state: 'loading' | 'error' | 'ready', msg, retry, user, entries, format }
-let rider = null, friend = null, seq = 0, allTheirs = false;
+// friend: null, or { name, state: 'loading' | 'error' | 'ready' }, plus { msg, retry } for an error, or for a ready friend
+// { user, format, entries, view: overlay(), compat: compatibility(), picks: rideTogether() }
+let rider = null, myFormat = null, friend = null, seq = 0, allTheirs = false;
 const riding = () => friend?.state === 'ready';
 // The same question for you and your friend: the whole list with each show's franchise neighbours, scores on
 // AniList's 100-point scale whatever format the rider uses, and that format.
@@ -35,6 +36,7 @@ async function boot() {
   if (!d.MediaListCollection) throw new Error("AniList didn't send your list. Try again.");
   // 18+ titles (and 18+ neighbouring stops) stay off the map unless 18+ is on
   mine = clean(d.MediaListCollection.lists.flatMap(l => l.entries), prefs.adult());
+  myFormat = d.User?.mediaListOptions?.scoreFormat;
   rider = user;
   lines = franchises(mine);
   lines.forEach((l, i) => (l.color = PALETTE[i % PALETTE.length]));
@@ -58,6 +60,7 @@ async function board(typed) {
   const failed = (msg, keep = false) => { if (my !== seq) return; friend = { name, state: 'error', msg, retry: keep }; if (!keep) address(null); carriage(); };
   if (!/^[\w-]{1,40}$/.test(name)) return failed(`"${name}" can't be an AniList username: those are letters and numbers only.`);
   friend = { name, state: 'loading' };
+  allTheirs = false;
   address(name);
   carriage();
   let user;
@@ -66,6 +69,7 @@ async function board(typed) {
   } catch (e) {
     return e.status === 404 ? failed(`No AniList user called "${name}". Check the spelling.`) : failed(`Couldn't look up ${name}: ${e.message}`, true);
   }
+  if (my !== seq) return;
   if (!user) return failed(`No AniList user called "${name}". Check the spelling.`);
   if (user.id === rider.id) return failed("That's you! Enter a friend's username to ride together.");
   let d;
@@ -84,7 +88,9 @@ async function board(typed) {
   const color = new Map(lines.flatMap(l => l.stations.map(s => [s.id, l.color])));
   view.lines.forEach((l, i) => (l.color = l.stations.map(s => color.get(s.id)).find(Boolean) || PALETTE[i % PALETTE.length]));
   view.theirs.forEach((l, i) => (l.color = PALETTE[i % PALETTE.length]));
-  friend = { name: user.name, state: 'ready', user, format: d.User?.mediaListOptions?.scoreFormat, entries, view };
+  const format = d.User?.mediaListOptions?.scoreFormat;
+  const compat = compatibility({ entries: mine, format: myFormat }, { entries, format });
+  friend = { name: user.name, state: 'ready', user, format, entries, view, compat, picks: rideTogether(mine, entries) };
   address(user.name);
   carriage();
 }
@@ -117,6 +123,64 @@ function tools() {
 const chips = () => [['all', 'All lines'], ...(riding() ? [['shared', 'Shared lines']] : []), ['open', 'Unfinished'], ['complete', 'End to end']].map(([k, l]) =>
   `<label><input type="radio" name="f" value="${k}"${k === filter ? ' checked' : ''}><span>${l}</span></label>`).join('');
 
+// ---- shared carriage: compatibility and ride together -----------------------
+const SCALE = { POINT_100: '100-point', POINT_10_DECIMAL: '10-point decimal', POINT_10: '10-point', POINT_5: '5-star', POINT_3: '3-face' };
+const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+// The score on an LED board, then how it was reached.
+function score() {
+  const c = friend.compat, them = esc(friend.name);
+  const row = (label, got, of, why) => `<li><span>${label}</span><b>${got}<small>/${of}</small></b><div class="bar" aria-hidden="true"><i style="width:${(100 * got) / of}%"></i></div><p>${why}</p></li>`;
+  const common = `${plural(c.shared, 'show')} you've both ridden, of your ${c.mine.toLocaleString()} and ${them}'s ${c.theirs.toLocaleString()} (${Math.round(100 * c.overlap)}% overlap).`;
+  let why;
+  if (c.basis === null) why = `<p class="compat-note">Too little in common to judge: ${plural(c.shared, 'show')} you've both ridden, and it takes ${MIN_SHARED}.</p>`;
+  else if (c.basis === 'overlap') why = `<ul class="compat-why">${row('Shows in common', c.points.overlap, 100, common)}</ul>
+      <p class="compat-note">Scores not compared: ${c.scored ? `you've both scored only ${c.scored} of these` : "you haven't both scored any of these"} and it takes ${MIN_SCORED}, so this is overlap alone.</p>`;
+  else {
+    const allow = Math.max(STEP[myFormat] ?? 0, STEP[friend.format] ?? 0) / 2;
+    const coarse = (STEP[myFormat] ?? 0) >= (STEP[friend.format] ?? 0) ? `your ${SCALE[myFormat]}` : `${them}'s ${SCALE[friend.format]}`;
+    const lean = Math.round(c.lean);
+    why = `<ul class="compat-why">
+      ${row('Shows in common', c.points.overlap, 50, common)}
+      ${row('Score agreement', c.points.scores, 50, `${plural(Math.round(c.apart), 'point')} apart on average, out of 100, on the ${plural(c.scored, 'show')} you both scored.${allow ? ` Differences within ${allow} count as agreeing, since ${coarse} scale can't be finer.` : ''}${Math.abs(lean) >= 3 ? ` On average you score ${plural(Math.abs(lean), 'point')} ${lean > 0 ? 'higher' : 'lower'} than ${them}.` : ''}`)}
+    </ul>`;
+  }
+  const lines = friend.view.lines.filter(l => l.shared), both = lines.reduce((a, l) => a + l.both, 0);
+  return `<div class="compat">
+      <div class="compat-led"><b>${c.score ?? '––'}</b><span>${c.score == null ? 'not enough to go on' : 'compatibility'}</span></div>
+      <div class="compat-body">${why}<p class="hint">${plural(lines.length, 'shared line')}, ${plural(both, 'station')} you've both ridden.</p></div>
+    </div>`;
+}
+
+// Shows on both Planning lists, as cards. The list only knows ids and scores, so the first few get one request
+// for their covers; nothing more is fetched for the rest until asked.
+const PICKS = 12;
+async function together(my, all = false) {
+  const el = $('#together');
+  const picks = friend.picks, them = esc(friend.name);
+  const head = `<div class="district-head"><span class="district-name">Ride together</span><span class="hint" style="margin:0">${picks.length
+    ? `${plural(picks.length, 'show')} on both your Planning lists: out now first, then by AniList score` : ''}</span></div>`;
+  if (!picks.length) return void (el.innerHTML = `<section class="district together">${head}<p class="hint">Nothing on both your Planning lists yet. Add something you'd both like, then come back with ${them}.</p></section>`);
+  const ids = picks.slice(0, all ? 50 : PICKS).map(m => m.id);
+  if (!all) el.innerHTML = `<section class="district together">${head}<div class="loading"><div class="train" aria-hidden="true"><i></i><i></i><i></i></div></div></section>`;
+  let media;
+  try {
+    const d = await gql(`query($ids:[Int]){ Page(perPage:50){ media(id_in:$ids,type:ANIME){ ${CARD} } } }`, { ids }, { remember: false });
+    const by = new Map(d.Page.media.map(m => [m.id, m]));
+    media = ids.map(id => by.get(id)).filter(Boolean);
+  } catch (e) {
+    if (my === seq) el.innerHTML = `<section class="district together">${head}<p class="carriage-error" role="alert">Couldn't load the picks: ${esc(e.message)}</p></section>`;
+    return;
+  }
+  if (my !== seq || !riding()) return;
+  const onShared = new Set(friend.view.lines.filter(l => l.shared).flatMap(l => l.stations.map(s => s.id)));
+  const more = picks.length > media.length && !all;
+  el.innerHTML = `<section class="district together">${head}
+      <div class="row">${media.map(m => card(m, null, onShared.has(m.id) ? '<span class="match">On a line you share</span>' : '')).join('')}</div>
+      ${more ? `<button class="btn ghost their-more" type="button" data-all>Show ${picks.length > 50 ? 'the top 50' : `all ${picks.length}`}</button>` : ''}
+    </section>`;
+  $('[data-all]', el)?.addEventListener('click', () => together(my, true));
+}
+
 // The "Ride with a friend" box, and once a friend is aboard, who it is.
 function carriage() {
   const el = $('#carriage');
@@ -128,9 +192,10 @@ function carriage() {
       <p class="carriage-who"><b>${esc(rider.name)}</b> <span>×</span> <b>${esc(friend.name)}</b></p>
       <button class="btn ghost carriage-leave" type="button">Ride alone</button>
       <div class="carriage-body">${friend.state === 'loading' ? `<p class="hint" role="status">Fetching ${esc(friend.name)}'s map…</p>`
-        : `<p class="hint" role="status">${friend.entries.length.toLocaleString()} shows on ${esc(friend.name)}'s list.</p>`}</div>
+        : score()}</div>
     </div>`;
     $('.carriage-leave', el).onclick = leave;
+    if (riding()) together(seq); else $('#together').innerHTML = '';
     tools();
     draw();
     return;
@@ -139,9 +204,10 @@ function carriage() {
       <label for="with">Ride with a friend</label>
       <div class="inline-form"><input id="with" name="with" placeholder="Their AniList username" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(friend?.name || '')}" required>
         <button class="btn ghost">Ride together</button></div>
-      ${friend?.state === 'error' ? `<p class="carriage-error" role="alert">${esc(friend.msg)}${friend.retry ? ' <button class="linkish" type="button" data-retry>Try again</button>' : ''}</p>`
+      ${friend?.state === 'error' ? `<p class="carriage-error" role="alert">${esc(friend.msg)}${friend.retry ? ' <button class="linkish" type="button" data-retry>Retry</button>' : ''}</p>`
         : '<p class="hint">See the lines you share, how well your tastes match, and what you could watch together.</p>'}
     </form>`;
+  $('#together').innerHTML = '';
   $('form', el).onsubmit = e => { e.preventDefault(); board(e.target.with.value); };
   $('[data-retry]', el)?.addEventListener('click', () => board(friend.name));
   tools();
@@ -171,6 +237,7 @@ function render(user) {
         <div class="legend">${['done', 'here', 'planned', 'unridden', 'dropped', 'soon'].map(s => `<span><svg viewBox="0 0 24 24" width="18" height="18">${marker(s, 12, 12, '#00a7db')}</svg>${STATE[s]}</span>`).join('')}</div>
       </div>
     </section>
+    <div id="together"></div>
     <div id="map"></div>`;
   page.querySelector('.map-tools .chips').addEventListener('change', e => { filter = e.target.value; draw(); });
   $('#rw')?.addEventListener('input', e => { stop(); setYear(+e.target.value); });
