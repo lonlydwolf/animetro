@@ -107,6 +107,10 @@ async function boot() {
         <div><b>Picked for you</b><p class="hint" style="margin:0">Sequels you skipped, shows that match your taste, hidden gems, and your Planning list ranked by fit.</p></div>
         <span class="btn">Open For you</span>
       </a>
+      <a class="tonight fy-link" href="tickets.html" style="margin-top:12px">
+        <div><b>Ticket stubs</b><p class="hint" style="margin:0">Every show you've completed as a ticket stub, by the year you finished it. Share any one as a picture.</p></div>
+        <span class="btn ghost">Open the album</span>
+      </a>
       <a class="tonight fy-link" href="sync.html" style="margin-top:12px">
         <div><b>Backup sync <span class="tag${syncOn() ? ' s-COMPLETED' : ''}" style="font:700 .72rem var(--body);vertical-align:middle">${syncOn() ? (simklConnected() ? 'On, Simkl connected' : 'On') : 'Off'}</span></b>
           <p class="hint" style="margin:0">Copy your AniList list to Simkl when you press a button, as a backup next to MAL-Sync. Off until you turn it on.</p></div>

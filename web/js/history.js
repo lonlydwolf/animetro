@@ -57,6 +57,7 @@ function render(history) {
         <div><b>${streak([...counts.keys()], today)}</b><span>day streak</span></div>
         <div><b>${counts.size}</b><span>active days, last 6 months</span></div>
       </div>
+      <p class="album-link"><a class="btn ghost" href="tickets.html">Your ticket stubs</a><span class="hint">every show you've completed, by year</span></p>
     </section>
     <section>
       <div class="section-head"><h2>Ride calendar</h2><span class="hint" style="margin:0">Each square is a day; the stronger the color, the more you logged.</span></div>
