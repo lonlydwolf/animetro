@@ -1,4 +1,4 @@
-// Share cards: a watch-order line, your pass or a ticket stub, drawn on a canvas as a 1200x675 image you can save,
+// Share cards: a watch-order line, your pass, a ticket stub or your year, drawn on a canvas as a 1200x675 image you can save,
 // copy, or share. No libraries; AniList's image server allows canvas export (it sends CORS headers;
 // the Mac app proxies pictures instead, see img below).
 import { toast, safeFilename } from './ui.js';
@@ -298,6 +298,142 @@ export async function stubCard(s) {
   footer(g);
   g.fillStyle = C.dim; g.font = `500 17px ${BODY}`; g.textAlign = 'right'; g.textBaseline = 'middle';
   g.fillText(`${s.rider}'s ${s.nth} completed show`, W - 70, H - 42);
+  g.textAlign = 'left';
+  return c;
+}
+
+// ---- year on the rails ---------------------------------------------------------
+// y: { year, rider, span, eps, time, days, streak: { days, text }, busiest: { name, color, eps, time } | null,
+//   months: [12 episode counts], busiestMonth, monthNames: [12], completed, covers: [urls], districts: [names] }
+// covers leaves out 18+ covers while they're blurred. busiest is null in a year with completions but no episodes logged.
+export async function yearCard(y) {
+  await ready();
+  const [c, g] = canvas();
+  const pics = (await Promise.all(y.covers.slice(0, 5).map(img))).filter(Boolean);
+  const b = y.busiest;
+  const base = /^#([0-9a-f]{3}){1,2}$/i.test(b?.color) ? b.color : C.platform;
+  g.fillStyle = C.night; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(980, 110, 30, 980, 110, 640);
+  glow.addColorStop(0, mix(base, C.night, .45)); glow.addColorStop(1, C.night);
+  g.globalAlpha = .6; g.fillStyle = glow; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
+  // a December night over the line: the same sky every time for the same year
+  let seed = y.year * 7919;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = '#fff';
+  for (let i = 0; i < 90; i++) {
+    const sx = rnd() * W, sy = rnd() * 360, r = .6 + rnd() * 1.6;
+    g.globalAlpha = .12 + rnd() * .35; g.beginPath(); g.arc(sx, sy, r, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+
+  // the shows finished this year, fanned out like stubs on a table; without any, the year itself in outline
+  if (pics.length) {
+    const cw = 90, ch = 128, step = 52, x0 = W - 70 - cw - (pics.length - 1) * step;
+    pics.forEach((p, i) => {
+      g.save();
+      g.translate(x0 + i * step + cw / 2, 52 + ch / 2); g.rotate([-.09, .05, -.04, .08, -.06][i]);
+      g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 22; g.shadowOffsetY = 8;
+      g.fillStyle = '#f3eee0'; rrect(g, -cw / 2 - 5, -ch / 2 - 5, cw + 10, ch + 10, 9); g.fill();
+      g.shadowColor = 'transparent';
+      g.save(); rrect(g, -cw / 2, -ch / 2, cw, ch, 6); g.clip(); cover(g, p, -cw / 2, -ch / 2, cw, ch); g.restore();
+      g.restore();
+    });
+  } else {
+    // kept to the corner the covers would use, clear of the title and the numbers
+    g.save(); g.font = `120px ${DISPLAY}`; g.textAlign = 'right'; g.lineWidth = 2; g.strokeStyle = mix(base, C.night, .4);
+    g.strokeText(String(y.year), W - 60, 180); g.restore();
+  }
+
+  // header
+  g.textBaseline = 'middle';
+  g.font = `700 16px ${BODY}`;
+  const pill = g.measureText('YEAR ON THE RAILS').width + 36;
+  g.fillStyle = C.platform; rrect(g, 60, 44, pill, 34, 17); g.fill();
+  g.fillStyle = C.night; g.fillText('YEAR ON THE RAILS', 78, 62);
+  g.fillStyle = '#ffa53c'; g.font = `20px ${DOT}`; g.fillText('年間乗車記録', 60 + pill + 16, 62);
+  g.textBaseline = 'alphabetic';
+  const room = pics.length ? W - 70 - 90 - (pics.length - 1) * 52 - 100 : W - 120 - 440;
+  g.fillStyle = C.ink; g.font = `66px ${DISPLAY}`;
+  g.fillText(String(y.year), 60, 154);
+  const yw = g.measureText(String(y.year)).width;
+  g.font = `34px ${DISPLAY}`; g.fillStyle = C.dim;
+  // a long username steps down a size, then is cut by letters (cutting by words could leave only the ellipsis)
+  const who = `${y.rider}'s ride`, wroom = room - yw - 20;
+  let t = who;
+  for (const px of [34, 28, 22]) { g.font = `${px}px ${DISPLAY}`; if (g.measureText(who).width <= wroom) break; }
+  if (g.measureText(t).width > wroom) { while (t.length > 1 && g.measureText(t + '…').width > wroom) t = t.slice(0, -1); t += '…'; }
+  g.fillText(t, 60 + yw + 20, 154);
+  g.fillStyle = C.dim; g.font = `500 21px ${BODY}`; g.fillText(y.span, 60, 190);
+
+  // the big numbers, each under a metro line color
+  const stats = [
+    [y.eps.toLocaleString(), 'EPISODES', '#f39700'],
+    [y.time, 'ON BOARD', '#e60012'],
+    [`${y.streak.days} ${y.streak.days === 1 ? 'day' : 'days'}`, 'LONGEST STREAK', '#00a7db', y.streak.text],
+    [String(y.completed), y.completed === 1 ? 'SHOW COMPLETED' : 'SHOWS COMPLETED', '#00a650'],
+  ];
+  const sw = (W - 120) / stats.length;
+  stats.forEach(([v, k, col, sub], i) => {
+    const sx = 60 + i * sw;
+    g.fillStyle = col; rrect(g, sx, 224, 44, 6, 3); g.fill();
+    g.fillStyle = C.ink; g.font = `44px ${DISPLAY}`; g.fillText(lines(g, v, sw - 24, 1)[0], sx, 280);
+    g.fillStyle = C.dim; g.font = `700 15px ${BODY}`; g.fillText(k, sx, 306);
+    if (sub) { g.font = `500 15px ${BODY}`; g.fillText(sub, sx, 327); }
+  });
+
+  // busiest line and new districts
+  g.fillStyle = C.dim; g.font = `700 15px ${BODY}`;
+  g.fillText('BUSIEST LINE', 60, 374); g.fillText('NEW DISTRICTS OPENED', 660, 374);
+  g.beginPath(); g.arc(84, 410, 19, 0, Math.PI * 2); g.fillStyle = C.night; g.fill(); g.lineWidth = 8;
+  if (b) {
+    g.strokeStyle = base; g.stroke();
+    g.fillStyle = C.ink; g.font = `15px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText((b.name.match(/[A-Za-z]/)?.[0] || 'A').toUpperCase(), 84, 411);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    // a long name gets two lines, a size down, before it's cut short
+    g.font = `28px ${DISPLAY}`;
+    if (lines(g, b.name, 480, 3).length > 1) g.font = `22px ${DISPLAY}`;
+    const name = lines(g, b.name, 480, 2);
+    name.forEach((t, i) => g.fillText(t, 120, (name.length > 1 ? 400 : 406) + i * 27));
+    g.fillStyle = C.dim; g.font = `500 18px ${BODY}`;
+    g.fillText(`${b.eps.toLocaleString()} ${b.eps === 1 ? 'episode' : 'episodes'} · ${b.time}`, 120, name.length > 1 ? 456 : 434);
+  } else { // no episodes logged, only completions: an empty station, no line
+    g.strokeStyle = C.rail; g.setLineDash([6, 6]); g.stroke(); g.setLineDash([]);
+    g.fillStyle = C.ink; g.font = `28px ${DISPLAY}`; g.fillText('No episodes logged', 120, 406);
+    g.fillStyle = C.dim; g.font = `500 18px ${BODY}`; g.fillText('only completions this year', 120, 434);
+  }
+  g.fillStyle = C.ink; g.font = `40px ${DISPLAY}`; g.fillText(String(y.districts.length), 660, 420);
+  const dw = g.measureText(String(y.districts.length)).width + 18;
+  g.font = `600 18px ${BODY}`;
+  if (y.districts.length) {
+    g.fillStyle = C.ink;
+    lines(g, y.districts.join(' · '), W - 60 - 660 - dw, 2).forEach((t, i) => g.fillText(t, 660 + dw, 404 + i * 25));
+  } else { g.fillStyle = C.dim; g.fillText('every studio was an old friend', 660 + dw, 414); }
+
+  // the year as a line: twelve stations, a bar of episodes over each, the busiest month lit up
+  const x0 = 96, x1 = W - 96, ty = 556, step = (x1 - x0) / 11, most = Math.max(1, ...y.months);
+  g.lineCap = 'round';
+  g.strokeStyle = '#0d1129'; g.lineWidth = 18; g.beginPath(); g.moveTo(x0, ty); g.lineTo(x1, ty); g.stroke();
+  g.strokeStyle = mix(base, C.rail, .35); g.lineWidth = 9; g.stroke();
+  y.months.forEach((n, i) => {
+    const x = x0 + i * step, top = i === y.busiestMonth;
+    if (n) {
+      const h = Math.max(4, 44 * n / most);
+      g.fillStyle = top ? base : mix(base, C.rail, .55); rrect(g, x - 9, ty - 16 - h, 18, h, 4); g.fill();
+      g.fillStyle = top ? C.ink : C.dim; g.font = `${top ? 17 : 14}px ${DOT}`; g.textAlign = 'center';
+      g.fillText(n.toLocaleString(), x, ty - 24 - h);
+    }
+    g.beginPath(); g.arc(x, ty, top ? 12 : 8, 0, Math.PI * 2);
+    g.fillStyle = n ? '#fff' : C.night; g.fill();
+    g.lineWidth = top ? 6 : 4; g.strokeStyle = n ? base : '#5b6594'; g.stroke();
+    g.fillStyle = n ? C.ink : C.dim; g.font = `600 13px ${BODY}`; g.textAlign = 'center';
+    g.fillText(y.monthNames[i].toUpperCase(), x, ty + 32);
+    g.textAlign = 'left';
+  });
+
+  footer(g);
+  g.fillStyle = C.dim; g.font = `500 17px ${BODY}`; g.textAlign = 'right'; g.textBaseline = 'middle';
+  g.fillText(`${y.days} ${y.days === 1 ? 'day' : 'days'} on the rails`, W - 70, H - 42);
   g.textAlign = 'left';
   return c;
 }
