@@ -880,6 +880,78 @@ body.night { --platform: #ff5470; background: radial-gradient(ellipse at 70% -10
 .log-row p a:hover b { color: var(--platform); }
 .log-row small { margin-left: 8px; color: var(--dim); }
 .log-row.k-completed p { color: var(--platform); }
+/* Year on the rails: the year in review, loaded when the rider asks. --c is the busiest line's color. */
+.yr-intro, .yr-load, .yr-empty, .yr-card { background: var(--tunnel); border-radius: 18px; padding: 22px; min-width: 0; }
+.yr-intro, .yr-load, .yr-empty { display: grid; gap: 12px; justify-items: start; box-shadow: inset 6px 0 0 var(--platform); }
+.yr-intro p, .yr-load p, .yr-empty p { margin: 0; max-width: 64ch; }
+.yr-load p { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.yr-load b { font: 400 1rem var(--dot); }
+/* the train runs along the bar, as far back into the year as the pages have reached */
+.yr-track { position: relative; width: 100%; height: 14px; border-radius: 99px; background: var(--rail); overflow: hidden; }
+.yr-track i {
+  position: absolute; inset: 0 auto 0 0; border-radius: 99px; transition: width .5s;
+  background: repeating-linear-gradient(-45deg, var(--platform) 0 8px, color-mix(in srgb, var(--platform) 70%, var(--tunnel)) 8px 16px) 0 0 / 22.6px 22.6px;
+  animation: yr-run .8s linear infinite;
+}
+@keyframes yr-run { to { background-position: 22.6px 0; } }
+.yr-card { display: grid; gap: 18px; box-shadow: inset 0 6px 0 var(--c); }
+.yr-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 20px; }
+.yr-kicker { margin: 0 0 4px; font: 400 .88rem var(--dot); color: var(--led); letter-spacing: .04em; }
+.yr-title { font-size: clamp(2rem, 6vw, 3.2rem); }
+.yr-title span { font-size: .5em; color: var(--dim); }
+.sync-sum.yr-sum { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.yr-sum span { display: block; line-height: 1.35; }
+.yr-sum small { display: block; color: var(--dim); font-size: .74rem; white-space: nowrap; }
+.yr-bulk { margin: -6px 0 0; }
+.yr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; }
+.yr-panel { margin: 0; display: grid; gap: 10px; align-content: start; min-width: 0; background: var(--night); border-radius: 14px; padding: 16px; }
+.yr-panel h4 { margin: 0; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.yr-panel .hint { margin: 0; }
+.yr-busiest { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; }
+.yr-busiest .roundel { flex: none; width: 44px; height: 44px; border: 7px solid var(--c); font-size: 16px; }
+.yr-busiest b { min-width: 0; font: 400 1.15rem/1.25 var(--display); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.yr-busiest:hover b { color: var(--platform); }
+.yr-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.yr-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; align-items: center; font-size: .84rem; }
+.yr-lines a { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-decoration: none; }
+.yr-lines a:hover { color: var(--platform); }
+.yr-lines i { height: 7px; border-radius: 99px; background: linear-gradient(var(--c), var(--c)) 0 0 / var(--w) 100% no-repeat, var(--rail); }
+.yr-lines b { grid-row: 1 / 3; grid-column: 2; font: 400 .95rem var(--dot); }
+/* twelve months as stations on one line; the bar over each is the episodes logged that month */
+.yr-months { position: relative; list-style: none; margin: 0; padding: 0; height: 160px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; }
+.yr-months::before { content: ''; position: absolute; left: 3%; right: 3%; bottom: 23px; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--c) 45%, var(--rail)); }
+.yr-months li { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 18px 18px; justify-items: center; min-width: 0; }
+.yr-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; width: 100%; height: 100%; padding-bottom: 5px; }
+.yr-bar b { font: 400 .66rem var(--dot); color: var(--dim); }
+.yr-bar i { width: min(70%, 20px); height: calc(var(--h) * .78); border-radius: 4px 4px 1px 1px; background: color-mix(in srgb, var(--c) 55%, var(--rail)); }
+.yr-months em { align-self: center; width: 13px; height: 13px; border-radius: 50%; background: var(--night); border: 3px solid var(--rail); }
+.yr-months .on em { background: #fff; border-color: var(--c); }
+.yr-months .peak em { width: 17px; height: 17px; border-width: 4px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
+.yr-months .peak i { background: var(--c); }
+.yr-months .peak b { color: var(--ink); }
+.yr-months span { font: 700 .7rem/18px var(--body); color: var(--dim); }
+.yr-months .on span { color: var(--ink); }
+.yr-districts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+/* a transfer marker, as on My map's studio districts */
+.yr-districts li { position: relative; display: grid; padding-left: 28px; min-width: 0; }
+.yr-districts li::before { content: ''; position: absolute; left: 0; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--night); border: 3px solid var(--ink); }
+.yr-districts b { font: 400 1rem/1.3 var(--display); overflow-wrap: anywhere; }
+.yr-districts span { font-size: .8rem; color: var(--dim); }
+.yr-districts a, .yr-ends a, .yr-panel .hint a { color: var(--ink); }
+.yr-covers { display: flex; flex-wrap: wrap; gap: 6px; }
+.yr-covers a, .yr-covers span { display: block; width: 40px; height: 57px; border-radius: 5px; overflow: hidden; }
+.yr-covers img { width: 100%; height: 100%; object-fit: cover; }
+.yr-covers span { display: grid; place-items: center; background: var(--rail); font-size: .78rem; font-weight: 700; }
+.yr-ends { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 0; color: var(--dim); font-size: .88rem; }
+.yr-ends b { color: var(--ink); }
+@media (max-width: 1000px) { .sync-sum.yr-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .yr-intro, .yr-load, .yr-empty, .yr-card { padding: 16px; }
+  .sync-sum.yr-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yr-panel { padding: 14px 12px; }
+  .yr-top .btn { width: 100%; }
+  .yr-months { height: 140px; }
+}
 
 /* ---------- rapid rating ---------- */
 .rate-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-top: 44px; }
