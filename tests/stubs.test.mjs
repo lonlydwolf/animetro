@@ -1,7 +1,7 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fuzzyDate, journeyDays, route, rideTime, scoreText, guessFormat, stubs, album, serial } from '../web/js/stubs.js';
+import { fuzzyDate, journeyDays, route, rideTime, scoreText, guessFormat, stubs, album, serial, ordinal } from '../web/js/stubs.js';
 
 const media = (id, more = {}) => ({ id, format: 'TV', episodes: 12, duration: 24, isAdult: false, ...more });
 const entry = (id, completedAt, more = {}) => ({
@@ -153,4 +153,9 @@ test('stub numbers print like a ticket serial', () => {
   assert.equal(serial(7), '0007');
   assert.equal(serial(214), '0214');
   assert.equal(serial(12345), '12345');
+});
+
+test('ordinals for "your nth completed show"', () => {
+  assert.deepEqual([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111, 112, 455].map(ordinal),
+    ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th', '112th', '455th']);
 });
