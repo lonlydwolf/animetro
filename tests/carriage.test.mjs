@@ -1,7 +1,8 @@
 import './setup.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clean, overlay, compatibility, rideTogether, riderMarker, MIN_SHARED, MIN_SCORED } from '../web/js/carriage.js';
+import { clean, overlay, apart, compatibility, rideTogether, riderMarker, MIN_SHARED, MIN_SCORED } from '../web/js/carriage.js';
+import { ride } from '../web/js/map.js';
 
 // a show with franchise links to other shows: rel = { SEQUEL: [2], ... }
 const md = (id, year, rel = {}, extra = {}) => ({ id, type: 'ANIME', format: 'TV', status: 'FINISHED', popularity: 1000 - id, startDate: { year },
@@ -41,6 +42,23 @@ test("a line is shared even when you never rode the same station, and their line
   assert.equal(lines[0].both, 0);
   assert.deepEqual(apart.map(l => l.anchor.id), [20], 'only the franchise you never reached');
   assert.deepEqual(apart[0].stations.map(s => s.state), ['done', 'unridden'], 'drawn with their states');
+});
+
+test('their lines without you include the ones they are watching, paused or dropped, not just finished ones', () => {
+  const friendOnly = [
+    e(30, 'COMPLETED', { media: md(30, 2001, { SEQUEL: [31] }) }),
+    e(40, 'CURRENT', { media: md(40, 2002, { SEQUEL: [41] }) }),
+    e(50, 'PAUSED', { media: md(50, 2003, { SEQUEL: [51] }) }),
+    e(60, 'DROPPED', { media: md(60, 2004, { SEQUEL: [61] }) }),
+    e(70, 'COMPLETED', { media: md(70, 2005, { SEQUEL: [71] }) }), e(71, 'CURRENT', { media: md(71, 2006, { PREQUEL: [70] }) }),
+    e(80, 'PLANNING', { media: md(80, 2007) }), // planned only: not a line they ride
+  ];
+  const { theirs: lines } = overlay(mine, friendOnly);
+  const listed = apart(lines.map(l => ride(l, 'local')));
+  assert.deepEqual(listed.map(l => [l.anchor.id, l.rode, l.done]), [[70, 2, 1], [30, 1, 1], [40, 1, 0], [50, 1, 0], [60, 1, 0]]);
+  // a line whose only boarded station a train service hides has nothing to show
+  const hidden = lines.find(l => l.anchor.id === 40);
+  assert.deepEqual(apart([{ ...hidden, stations: hidden.stations.filter(s => s.state !== 'here') }]), []);
 });
 
 test('a franchise they only plan to ride is not shared', () => {

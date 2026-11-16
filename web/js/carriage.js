@@ -41,6 +41,15 @@ export function overlay(mine, friends, now = new Date()) {
   return { lines, theirs };
 }
 
+// Their lines without you, as listed under the map (after a train service has had its say): every line they've
+// boarded, meaning a station they finished, are on, paused or dropped (RODE, as station states), not only lines
+// they finished a station of. rode counts those stations; most boarded first, then most finished, then longest.
+const BOARDED = new Set(['done', 'here', 'paused', 'dropped']);
+export function apart(lines) {
+  return lines.map(l => ({ ...l, rode: l.stations.filter(s => BOARDED.has(s.state)).length })).filter(l => l.rode)
+    .sort((a, b) => b.rode - a.rode || b.done - a.done || b.total - a.total);
+}
+
 // ---- compatibility ---------------------------------------------------------
 // Scores arrive on AniList's 100-point scale (score(format: POINT_100)), whatever format each rider uses.
 // A coarse format can't say 87: a 5-star rider's 4 stars covers 70-89. So two scores count as apart only by

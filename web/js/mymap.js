@@ -1,7 +1,7 @@
 import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, fail, qs, safeUrl } from './ui.js';
+import { header, $, esc, fail, qs, safeUrl, STATUS } from './ui.js';
 import { franchises, districts, lineSvg, marker, ride, rewind, firstYear, STATE, PALETTE } from './map.js';
-import { clean } from './carriage.js';
+import { clean, overlay, riderMarker, apart } from './carriage.js';
 
 header();
 const page = $('#page');
@@ -15,7 +15,8 @@ const NOW = new Date().getFullYear();
 let year = null, playing = null;
 // Shared carriage: a friend's map over yours. The friend lives only in the address (?with=name), never in storage.
 // friend: null, or { name, state: 'loading' | 'error' | 'ready', msg, retry, user, entries, format }
-let rider = null, friend = null, seq = 0;
+let rider = null, friend = null, seq = 0, allTheirs = false;
+const riding = () => friend?.state === 'ready';
 // The same question for you and your friend: the whole list with each show's franchise neighbours, scores on
 // AniList's 100-point scale whatever format the rider uses, and that format.
 const LIST = `query($u:Int){ User(id:$u){ mediaListOptions{ scoreFormat } } MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress score(format:POINT_100) updatedAt completedAt{year month day} startedAt{year month day} media{
@@ -77,7 +78,13 @@ async function board(typed) {
   // AniList answers a private list with an error next to the user, rather than failing the whole request
   if (!d.MediaListCollection) return failed(`${user.name}'s list is private, so there's nothing to ride along with.`);
   if (my !== seq) return;
-  friend = { name: user.name, state: 'ready', user, format: d.User?.mediaListOptions?.scoreFormat, entries: clean(d.MediaListCollection.lists.flatMap(l => l.entries), prefs.adult()) };
+  const entries = clean(d.MediaListCollection.lists.flatMap(l => l.entries), prefs.adult());
+  const view = overlay(mine, entries);
+  // your lines keep the colors they have on your own map; their lines take the palette in turn
+  const color = new Map(lines.flatMap(l => l.stations.map(s => [s.id, l.color])));
+  view.lines.forEach((l, i) => (l.color = l.stations.map(s => color.get(s.id)).find(Boolean) || PALETTE[i % PALETTE.length]));
+  view.theirs.forEach((l, i) => (l.color = PALETTE[i % PALETTE.length]));
+  friend = { name: user.name, state: 'ready', user, format: d.User?.mediaListOptions?.scoreFormat, entries, view };
   address(user.name);
   carriage();
 }
@@ -89,6 +96,26 @@ function leave() {
   carriage();
   $('#with')?.focus();
 }
+
+// What changes around the map while a friend rides along: a Shared lines filter, a legend for who rode what,
+// and Rewind, which only knows your dates, switched off.
+function tools() {
+  if (!riding() && filter === 'shared') filter = 'all';
+  page.querySelector('.map-tools .chips').innerHTML = chips();
+  $('#legend-who')?.remove();
+  if (riding()) {
+    const who = [['both', 'You both rode'], ['me', 'You rode'], ['friend', `${friend.name} rode`]];
+    $('.map-tools').insertAdjacentHTML('afterend', `<div class="legend legend-who" id="legend-who">${who.map(([w, l]) =>
+      `<span><svg viewBox="-6 0 36 24" width="27" height="18">${riderMarker({ who: w, state: 'done' }, 12, 12, '#00a7db')}</svg>${esc(l)}</span>`).join('')}</div>`);
+  }
+  if ($('#rw')) {
+    if (riding()) { stop(); year = null; $('#rw').value = NOW; $('#rw-year').textContent = 'Now'; $('#rw').setAttribute('aria-valuetext', 'Now'); }
+    $('#rw').disabled = $('#rw-play').disabled = riding();
+    $('.rewind').classList.toggle('off', riding());
+  }
+}
+const chips = () => [['all', 'All lines'], ...(riding() ? [['shared', 'Shared lines']] : []), ['open', 'Unfinished'], ['complete', 'End to end']].map(([k, l]) =>
+  `<label><input type="radio" name="f" value="${k}"${k === filter ? ' checked' : ''}><span>${l}</span></label>`).join('');
 
 // The "Ride with a friend" box, and once a friend is aboard, who it is.
 function carriage() {
@@ -104,6 +131,8 @@ function carriage() {
         : `<p class="hint" role="status">${friend.entries.length.toLocaleString()} shows on ${esc(friend.name)}'s list.</p>`}</div>
     </div>`;
     $('.carriage-leave', el).onclick = leave;
+    tools();
+    draw();
     return;
   }
   el.innerHTML = `<form class="carriage-form">
@@ -115,6 +144,8 @@ function carriage() {
     </form>`;
   $('form', el).onsubmit = e => { e.preventDefault(); board(e.target.with.value); };
   $('[data-retry]', el)?.addEventListener('click', () => board(friend.name));
+  tools();
+  draw();
 }
 
 function render(user) {
@@ -136,8 +167,7 @@ function render(user) {
       </div>
       <p class="hint" id="rw-note"></p>` : ''}
       <div class="map-tools">
-        <div class="chips" role="radiogroup" aria-label="Show">${[['all', 'All lines'], ['open', 'Unfinished'], ['complete', 'End to end']].map(([k, l]) =>
-          `<label><input type="radio" name="f" value="${k}"${k === filter ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
+        <div class="chips" role="radiogroup" aria-label="Show">${chips()}</div>
         <div class="legend">${['done', 'here', 'planned', 'unridden', 'dropped', 'soon'].map(s => `<span><svg viewBox="0 0 24 24" width="18" height="18">${marker(s, 12, 12, '#00a7db')}</svg>${STATE[s]}</span>`).join('')}</div>
       </div>
     </section>
@@ -152,11 +182,11 @@ function render(user) {
     const p = qs(); p.set('stops', svc); history.replaceState(null, '', `?${p}`);
     draw();
   });
+  page.querySelector('#map').addEventListener('click', e => { if (e.target.closest('[data-more]')) { allTheirs = true; draw(); } });
   carriage();
-  draw();
 }
 
-const keep = l => filter === 'all' || (filter === 'complete' ? l.complete : !l.complete);
+const keep = l => filter === 'all' || (filter === 'shared' ? l.shared : filter === 'complete' ? l.complete : !l.complete);
 
 function setYear(y) {
   year = y >= NOW ? null : y;
@@ -184,12 +214,15 @@ function stop() {
 function draw() {
   const el = $('#map');
   if (!el) return;
-  const past = year ? rewind(lines, year) : null;
-  const shown = (past ? past.lines : lines).map(l => ride(l, svc));
-  if ($('#rw-note')) $('#rw-note').textContent = !past ? 'Slide back to watch your network grow, from your list\'s start and finish dates.'
+  const past = year && !riding() ? rewind(lines, year) : null;
+  const own = (past ? past.lines : lines).map(l => ride(l, svc));
+  const shown = riding() ? friend.view.lines.map(l => ride(l, svc)) : own;
+  if ($('#rw-note')) $('#rw-note').textContent = riding() ? `Rewind is off while you ride with ${friend.name}: it only knows your own dates.`
+    : !past ? 'Slide back to watch your network grow, from your list\'s start and finish dates.'
     : `Your map at the end of ${year}.${past.approx ? ` ${past.approx} stop${past.approx === 1 ? ' has' : 's have'} no finish date on AniList, so ${past.approx === 1 ? 'its' : 'their'} start date (or the last time you changed the entry) stands in.` : ''}${past.siding ? ` ${past.siding} finished stop${past.siding === 1 ? '' : 's'} with no date at all wait${past.siding === 1 ? 's' : ''} in the siding until Now.` : ''}`;
-  const full = shown.filter(l => l.total > 1);
-  const stations = shown.reduce((a, l) => a + l.total, 0), ridden = shown.reduce((a, l) => a + l.done, 0);
+  // your numbers stay yours: a friend's rides add stations to the map, not to your count
+  const full = own.filter(l => l.total > 1);
+  const stations = own.reduce((a, l) => a + l.total, 0), ridden = own.reduce((a, l) => a + l.done, 0);
   $('#sum').innerHTML = `
     <div><b>${full.length}</b><span>lines</span></div>
     <div><b>${ridden.toLocaleString()} / ${stations.toLocaleString()}</b><span>stations ridden</span></div>
@@ -199,14 +232,46 @@ function draw() {
   $('#svc-note').textContent = NOTE[svc];
   const width = Math.min(el.clientWidth || 1100, 1140) - 2;
   const multi = shown.filter(l => l.total > 1 && keep(l)), single = shown.filter(l => l.total === 1 && keep(l));
-  el.innerHTML = districts(multi).map(dist => `
+  if (riding()) return void (el.innerHTML = overlaid(multi, single, width) || '<p class="empty">No lines match this filter.</p>');
+  el.innerHTML = districts(multi).map(dist => district(dist, width)).join('') + locals(single) || '<p class="empty">No lines match this filter.</p>';
+}
+
+const district = (dist, width, opts) => `
     <section class="district">
       <div class="district-head"><span class="district-name">${dist.name ? esc(dist.name) : 'Other lines'}</span><span class="hint" style="margin:0">${dist.lines.length} line${dist.lines.length === 1 ? '' : 's'}${dist.name ? ', transfer between them here' : ''}</span></div>
-      <div class="district-lines${dist.name ? ' transfer' : ''}">${dist.lines.map(l => lineSvg(l, width - 28, svc)).join('')}</div>
-    </section>`).join('')
-    + (single.length ? `<section class="district"><div class="district-head"><span class="district-name">One-stop lines</span><span class="hint" style="margin:0">Single-station lines</span></div>
-      <div class="locals">${single.map(l => { const s = l.stations[0]; return `<a class="local" href="anime.html?id=${s.id}" style="--c:${l.color}" title="${esc(title(s))}: ${STATE[s.state]}"><svg viewBox="0 0 24 24" width="20" height="20">${marker(s.state, 12, 12, l.color)}</svg><span>${esc(title(s))}</span></a>`; }).join('')}</div></section>` : '')
-    || '<p class="empty">No lines match this filter.</p>';
+      <div class="district-lines${dist.name ? ' transfer' : ''}">${dist.lines.map(l => lineSvg(l, width - 28, svc, opts?.(l))).join('')}</div>
+    </section>`;
+const locals = (single, pin = l => { const s = l.stations[0]; return `<a class="local" href="anime.html?id=${s.id}" style="--c:${l.color}" title="${esc(title(s))}: ${STATE[s.state]}"><svg viewBox="0 0 24 24" width="20" height="20">${marker(s.state, 12, 12, l.color)}</svg><span>${esc(title(s))}</span></a>`; }) =>
+  single.length ? `<section class="district"><div class="district-head"><span class="district-name">One-stop lines</span><span class="hint" style="margin:0">Single-station lines</span></div>
+      <div class="locals">${single.map(pin).join('')}</div></section>` : '';
+
+// ---- shared carriage: the overlay ---------------------------------------
+// Shared lines first, then the rest of your network as usual, then where your friend rides without you.
+// Every station's marker says who rode it, and its tooltip what your friend's list says.
+const tip = s => `${STATE[s.state]} · ${friend.name}: ${s.them ? STATUS[s.them] : 'not on their list'}`;
+const lineOpts = l => ({ mark: riderMarker, tip, head: l.shared ? `<span class="tag shared-tag">${l.both ? `On board together: ${l.both}` : 'Shared'}</span>` : '' });
+// a station on its own: the pill for "both" is wider than a ring, so the picture is too
+const icon = (s, color, h = 20) => `<svg viewBox="-6 0 36 24" width="${h * 1.5}" height="${h}" aria-hidden="true">${riderMarker(s, 12, 12, color)}</svg>`;
+const onePin = l => { const s = l.stations[0]; return `<a class="local" href="anime.html?id=${s.id}" style="--c:${l.color}" title="${esc(`${title(s)}: ${tip(s)}`)}">${icon(s, l.color)}<span>${esc(title(s))}</span></a>`; };
+const SOME = 24;
+function overlaid(multi, single, width) {
+  const shared = multi.filter(l => l.shared), oneShared = single.filter(l => l.shared);
+  const n = shared.length + oneShared.length;
+  let html = n ? `<section class="district shared-lines">
+      <div class="district-head"><span class="district-name">Shared lines</span><span class="hint" style="margin:0">${n} line${n === 1 ? '' : 's'} you've both ridden</span></div>
+      <div class="district-lines">${shared.map(l => lineSvg(l, width - 28, svc, lineOpts(l))).join('')}</div>
+      ${oneShared.length ? `<div class="locals">${oneShared.map(onePin).join('')}</div>` : ''}
+    </section>` : filter === 'shared' ? `<p class="empty">You and ${esc(friend.name)} haven't ridden any of the same lines yet.</p>` : '';
+  html += districts(multi.filter(l => !l.shared)).map(dist => district(dist, width, lineOpts)).join('') + locals(single.filter(l => !l.shared), onePin);
+  if (filter !== 'all') return html;
+  // their lines, everything they've boarded (watching, paused and dropped too), by how far they've ridden them
+  const theirs = apart(friend.view.theirs.map(l => ride(l, svc)));
+  if (!theirs.length) return html;
+  return html + `<section class="district their-lines">
+      <div class="district-head"><span class="district-name">Where ${esc(friend.name)} rides without you</span><span class="hint" style="margin:0">${theirs.length} line${theirs.length === 1 ? '' : 's'} you've never been on</span></div>
+      <div class="locals">${(allTheirs ? theirs : theirs.slice(0, SOME)).map(l => `<a class="local" href="line.html?id=${l.anchor.id}&stops=${svc}" style="--c:${l.color}" title="${esc(`${title(l.anchor)}: ${friend.name} has boarded ${l.rode} of ${l.total} stations, finished ${l.done}`)}">${icon({ who: 'friend' }, l.color)}<span>${esc(title(l.anchor))}</span><small>${l.rode}/${l.total}</small></a>`).join('')}</div>
+      ${!allTheirs && theirs.length > SOME ? `<button class="btn ghost their-more" type="button" data-more>Show all ${theirs.length}</button>` : ''}
+    </section>`;
 }
 
 function debounce(fn, ms) { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; }

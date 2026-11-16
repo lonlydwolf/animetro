@@ -164,7 +164,9 @@ export const STATE = {
   planned: 'On your Planning list', unridden: 'Not ridden yet', soon: 'Under construction',
 };
 
-export function lineSvg(l, width, svc = 'rapid') {
+// Optional, for drawing a line with more on it (Shared carriage): mark(station, x, y, color, pulse) draws a station's
+// marker, tip(station) says what its state is in the tooltip, head is HTML added to the line's heading.
+export function lineSvg(l, width, svc = 'rapid', { mark = (s, x, y, c, pulse) => marker(s.state, x, y, c, pulse), tip = s => STATE[s.state], head = '' } = {}) {
   const { pts, d, height } = snake(l.total, width);
   const letter = (title(l.anchor).match(/[A-Za-z]/)?.[0] || 'A').toUpperCase();
   const here = l.stations.findIndex(s => s.state === 'here');
@@ -173,7 +175,7 @@ export function lineSvg(l, width, svc = 'rapid') {
       <a class="mline-head" href="line.html?id=${l.anchor.id}&stops=${svc}">
         <span class="roundel" aria-hidden="true">${letter}</span>
         <b>${esc(title(l.anchor))}</b>
-        <span class="hint" style="margin:0">${l.done} of ${l.total} ridden${l.complete ? ' · end to end' : ''}</span>
+        <span class="hint" style="margin:0">${l.done} of ${l.total} ridden${l.complete ? ' · end to end' : ''}</span>${head}
       </a>
       <svg class="mline-map" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${esc(title(l.anchor))}: ${l.done} of ${l.total} stations ridden">
         <path d="${d}" class="track" />
@@ -181,8 +183,8 @@ export function lineSvg(l, width, svc = 'rapid') {
         ${pts.map((p, i) => {
           const s = l.stations[i], name = title(s);
           return `<a href="anime.html?id=${s.id}">
-            <title>${esc(name)} (${s.format ? s.format.replace('_', ' ') : ''}${s.startDate?.year ? `, ${s.startDate.year}` : ''}): ${STATE[s.state]}</title>
-            ${marker(s.state, p.x, p.y, l.color, i === here)}
+            <title>${esc(name)} (${s.format ? s.format.replace('_', ' ') : ''}${s.startDate?.year ? `, ${s.startDate.year}` : ''}): ${esc(tip(s))}</title>
+            ${mark(s, p.x, p.y, l.color, i === here)}
             <text x="${p.x + 6}" y="${p.y - 16}" transform="rotate(-32 ${p.x + 6} ${p.y - 16})" class="st-name${s.state === 'unridden' || s.state === 'soon' ? ' dim' : ''}">${esc(name.length > 20 ? name.slice(0, 19) + '…' : name)}</text>
             <text x="${p.x}" y="${p.y + 27}" class="st-code">${letter}${String(i + 1).padStart(2, '0')}</text>
           </a>`;
