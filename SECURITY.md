@@ -6,12 +6,12 @@ Please report security issues privately through GitHub: **Security › Report a 
 
 ## What Animetro stores
 
-Animetro has no server and no analytics. Everything is fetched live from AniList (and Simkl, if you turn backup sync on), straight from your browser or the Mac app.
+Animetro has no server and no analytics. Everything is fetched live from AniList (and Simkl, if you turn backup sync on, and AnimeThemes, if you turn Opening jingles on), straight from your browser or the Mac app.
 
 On your device only:
 - your AniList login token or username, and in a browser the AniList client ID you entered (the Mac app uses Animetro's own)
 - your Simkl client ID and login, only if you turned on backup sync
-- your settings: 18+, blur, chimes, recaps, livery, light or dark, episode view
+- your settings: 18+, blur, chimes, recaps, Opening jingles, livery, light or dark, episode view
 - for the current tab only: your profile and AniList answers from the last 5 minutes
 
 In a browser this is the site's local storage; the Mac app keeps it in `~/Library/WebKit/local.animetro` (quit the app and delete that folder to reset it). The Mac app also remembers its window colors and page zoom in its preferences.
@@ -33,7 +33,8 @@ Nothing in this repository contains anyone's keys or tokens. The one ID it does 
 
 Every page carries the same policy (in a `<meta>` tag, checked by the tests):
 - scripts only from Animetro itself: no inline scripts, no `eval`
-- connections only to AniList, Kitsu and Simkl
+- connections only to AniList, Kitsu, Simkl and AnimeThemes' GraphQL API (asked only while Opening jingles is on, sending nothing but a show's AniList ID, and never with cookies)
+- audio and video only from AnimeThemes' file servers (`a.animethemes.moe`, `v.animethemes.moe`), loaded on an anime page only when you press play, and on the quiz page for the clips of the game it is setting up
 - pictures only from Animetro itself and AniList's, Kitsu's, Crunchyroll's and YouTube's image servers
 - frames only for YouTube trailers; no plugins; forms only submit to Animetro
 
