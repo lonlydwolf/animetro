@@ -941,6 +941,9 @@ kbd { font: 700 .7rem var(--body); color: var(--dim); padding: 0 6px; border-rad
    print so a pale cover still shows on paper. Notches at the tear line are cut out with a mask, so the page shows
    through them; the shadow sits on the article around the masked paper. */
 .album-lead { font-size: 1rem; max-width: 60ch; }
+/* the way in from History */
+.album-link { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; margin: 20px 0 0; }
+.album-link .hint { margin: 0; }
 .album-years { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; }
 .album-years a { text-decoration: none; font: 400 .9rem var(--display); padding: 4px 12px; border-radius: 99px; border: 1px solid var(--rail); }
 .album-years a small { font: 700 .72rem var(--body); color: var(--dim); margin-left: 6px; }
