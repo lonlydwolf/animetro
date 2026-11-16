@@ -1,10 +1,11 @@
 import { gql, me, title, prefs } from './api.js';
-import { header, $, esc, fail, qs } from './ui.js';
+import { header, $, esc, fail, qs, safeUrl } from './ui.js';
 import { franchises, districts, lineSvg, marker, ride, rewind, firstYear, STATE, PALETTE } from './map.js';
+import { clean } from './carriage.js';
 
 header();
 const page = $('#page');
-let lines = [], filter = 'all';
+let lines = [], mine = [], filter = 'all';
 // train service, the same toggle as the line page, kept in the address so a reload or shared link keeps it
 const SERVICES = { express: 'Express', rapid: 'Rapid', local: 'Local' };
 const NOTE = { express: 'Express: only the main story.', rapid: 'Rapid: the main story plus the extras most fans watch.', local: 'Local: every stop, extras most people skip included.' };
@@ -12,6 +13,14 @@ let svc = SERVICES[qs().get('stops')] ? qs().get('stops') : 'rapid';
 // Map Rewind: null = now, else the year the map is rewound to
 const NOW = new Date().getFullYear();
 let year = null, playing = null;
+// Shared carriage: a friend's map over yours. The friend lives only in the address (?with=name), never in storage.
+// friend: null, or { name, state: 'loading' | 'error' | 'ready', msg, retry, user, entries, format }
+let rider = null, friend = null, seq = 0;
+// The same question for you and your friend: the whole list with each show's franchise neighbours, scores on
+// AniList's 100-point scale whatever format the rider uses, and that format.
+const LIST = `query($u:Int){ User(id:$u){ mediaListOptions{ scoreFormat } } MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress score(format:POINT_100) updatedAt completedAt{year month day} startedAt{year month day} media{
+    id title{english romaji} format status episodes duration popularity averageScore isAdult startDate{year month day} studios(isMain:true){ nodes{ name isAnimationStudio } }
+    relations{ edges{ relationType(version:2) node{ id type format status duration popularity isAdult title{english romaji} startDate{year month day} } } } } } } } }`;
 
 async function boot() {
   const user = await me();
@@ -21,18 +30,91 @@ async function boot() {
       <a class="btn" href="pass.html">Connect AniList</a></section>`;
     return;
   }
-  const d = await gql(`query($u:Int){ MediaListCollection(userId:$u,type:ANIME){ lists{ entries{ status progress updatedAt completedAt{year month day} startedAt{year month day} media{
-    id title{english romaji} format status episodes duration popularity isAdult startDate{year month day} studios(isMain:true){ nodes{ name isAnimationStudio } }
-    relations{ edges{ relationType(version:2) node{ id type format status duration popularity isAdult title{english romaji} startDate{year month day} } } } } } } } }`, { u: user.id });
+  const d = await gql(LIST, { u: user.id });
+  if (!d.MediaListCollection) throw new Error("AniList didn't send your list. Try again.");
   // 18+ titles (and 18+ neighbouring stops) stay off the map unless 18+ is on
-  const keep = m => !m.isAdult || prefs.adult();
-  const entries = [...new Map(d.MediaListCollection.lists.flatMap(l => l.entries).map(e => [e.media.id, e])).values()]
-    .filter(e => keep(e.media))
-    .map(e => ({ ...e, media: { ...e.media, relations: { edges: (e.media.relations?.edges || []).filter(x => keep(x.node)) } } }));
-  lines = franchises(entries);
+  mine = clean(d.MediaListCollection.lists.flatMap(l => l.entries), prefs.adult());
+  rider = user;
+  lines = franchises(mine);
   lines.forEach((l, i) => (l.color = PALETTE[i % PALETTE.length]));
   render(user);
   addEventListener('resize', debounce(() => draw(), 200));
+  if (qs().get('with')) board(qs().get('with'));
+}
+
+// ---- shared carriage: loading a friend ----------------------------------
+// A name as typed, or pasted from a profile address (anilist.co/user/Name/).
+const nameOf = s => (s.trim().match(/anilist\.co\/user\/([^/?#\s]+)/i)?.[1] || s.trim().replace(/^@/, ''));
+// keep ?with= (and ?stops=) in the address, so a reload or a shared link rides with the same friend
+function address(name) {
+  const p = qs();
+  if (name) p.set('with', name); else p.delete('with');
+  history.replaceState(null, '', String(p) ? `?${p}` : location.pathname);
+}
+
+async function board(typed) {
+  const name = nameOf(typed), my = ++seq;
+  const failed = (msg, keep = false) => { if (my !== seq) return; friend = { name, state: 'error', msg, retry: keep }; if (!keep) address(null); carriage(); };
+  if (!/^[\w-]{1,40}$/.test(name)) return failed(`"${name}" can't be an AniList username: those are letters and numbers only.`);
+  friend = { name, state: 'loading' };
+  address(name);
+  carriage();
+  let user;
+  try {
+    user = (await gql(`query($n:String){ User(name:$n){ id name avatar{large} } }`, { n: name }, { remember: false })).User;
+  } catch (e) {
+    return e.status === 404 ? failed(`No AniList user called "${name}". Check the spelling.`) : failed(`Couldn't look up ${name}: ${e.message}`, true);
+  }
+  if (!user) return failed(`No AniList user called "${name}". Check the spelling.`);
+  if (user.id === rider.id) return failed("That's you! Enter a friend's username to ride together.");
+  let d;
+  try {
+    d = await gql(LIST, { u: user.id }, { remember: false }); // nothing of theirs is kept, not even in this tab's cache
+  } catch (e) {
+    return /private/i.test(e.message) || e.status === 404 || e.status === 403 ? failed(`${user.name}'s list is private, so there's nothing to ride along with.`)
+      : failed(`Couldn't load ${user.name}'s map: ${e.message}`, true);
+  }
+  // AniList answers a private list with an error next to the user, rather than failing the whole request
+  if (!d.MediaListCollection) return failed(`${user.name}'s list is private, so there's nothing to ride along with.`);
+  if (my !== seq) return;
+  friend = { name: user.name, state: 'ready', user, format: d.User?.mediaListOptions?.scoreFormat, entries: clean(d.MediaListCollection.lists.flatMap(l => l.entries), prefs.adult()) };
+  address(user.name);
+  carriage();
+}
+
+function leave() {
+  ++seq;
+  friend = null;
+  address(null);
+  carriage();
+  $('#with')?.focus();
+}
+
+// The "Ride with a friend" box, and once a friend is aboard, who it is.
+function carriage() {
+  const el = $('#carriage');
+  if (!el) return;
+  const avatar = u => `<span class="car-face"${safeUrl(u?.avatar?.large) ? ` style="background-image:url('${safeUrl(u.avatar.large)}')"` : ''}></span>`;
+  if (friend?.state === 'ready' || friend?.state === 'loading') {
+    el.innerHTML = `<div class="carriage-card${friend.state === 'loading' ? ' loading-car' : ''}">
+      <div class="coupled" aria-hidden="true">${avatar(rider)}<i></i>${avatar(friend.user)}</div>
+      <p class="carriage-who"><b>${esc(rider.name)}</b> <span>×</span> <b>${esc(friend.name)}</b></p>
+      <button class="btn ghost carriage-leave" type="button">Ride alone</button>
+      <div class="carriage-body">${friend.state === 'loading' ? `<p class="hint" role="status">Fetching ${esc(friend.name)}'s map…</p>`
+        : `<p class="hint" role="status">${friend.entries.length.toLocaleString()} shows on ${esc(friend.name)}'s list.</p>`}</div>
+    </div>`;
+    $('.carriage-leave', el).onclick = leave;
+    return;
+  }
+  el.innerHTML = `<form class="carriage-form">
+      <label for="with">Ride with a friend</label>
+      <div class="inline-form"><input id="with" name="with" placeholder="Their AniList username" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(friend?.name || '')}" required>
+        <button class="btn ghost">Ride together</button></div>
+      ${friend?.state === 'error' ? `<p class="carriage-error" role="alert">${esc(friend.msg)}${friend.retry ? ' <button class="linkish" type="button" data-retry>Try again</button>' : ''}</p>`
+        : '<p class="hint">See the lines you share, how well your tastes match, and what you could watch together.</p>'}
+    </form>`;
+  $('form', el).onsubmit = e => { e.preventDefault(); board(e.target.with.value); };
+  $('[data-retry]', el)?.addEventListener('click', () => board(friend.name));
 }
 
 function render(user) {
@@ -41,6 +123,7 @@ function render(user) {
       <p class="hint" style="margin:0">${esc(user.name)}'s</p>
       <h1>Metro map</h1>
       <div class="sync-sum map-sum" id="sum"></div>
+      <div class="carriage" id="carriage"></div>
       <div class="map-svc">
         <div class="seg" role="group" aria-label="Stops">${Object.entries(SERVICES).map(([k, l]) => `<button data-svc="${k}">${l}</button>`).join('')}</div>
         <p class="hint" id="svc-note"></p>
@@ -69,6 +152,7 @@ function render(user) {
     const p = qs(); p.set('stops', svc); history.replaceState(null, '', `?${p}`);
     draw();
   });
+  carriage();
   draw();
 }
 
