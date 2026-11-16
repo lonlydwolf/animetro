@@ -43,7 +43,11 @@ test('every link between pages points at a page that exists', () => {
 //   img-src: AniList covers, banners, avatars and link icons (s4.anilist.co); Crunchyroll episode stills from
 //     AniList; Kitsu episode stills; the YouTube trailer still in the Mac app; data: for the blank
 //     placeholder; blob: for the share-card preview. The Mac app's __image route is 'self'.
-//   connect-src: AniList GraphQL, Kitsu, Simkl. frame-src: the YouTube trailer embed.
+//   connect-src: AniList GraphQL, Kitsu, Simkl, and AnimeThemes' GraphQL API (opening and ending themes, asked
+//     only while Opening jingles is switched on; see js/jingles.js). frame-src: the YouTube trailer embed.
+//   media-src: AnimeThemes' audio (a.animethemes.moe, Ogg) and video (v.animethemes.moe, WebM) servers, for the
+//     themes the anime page and the quiz play in an <audio> element. Without it media falls back to default-src
+//     'self' and every theme would be blocked. Nothing in Animetro plays its own media files (chimes are synthesised).
 // frame-ancestors would be ignored in a <meta>, so it isn't here.
 export const CSP = [
   "default-src 'self'",
@@ -51,7 +55,8 @@ export const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   'font-src https://fonts.gstatic.com',
   "img-src 'self' data: blob: https://s4.anilist.co https://img1.ak.crunchyroll.com https://media.kitsu.app https://media.kitsu.io https://i.ytimg.com",
-  "connect-src 'self' https://graphql.anilist.co https://kitsu.io https://api.simkl.com",
+  "connect-src 'self' https://graphql.anilist.co https://kitsu.io https://api.simkl.com https://graphql.animethemes.moe",
+  'media-src https://a.animethemes.moe https://v.animethemes.moe',
   'frame-src https://www.youtube-nocookie.com',
   "object-src 'none'",
   "base-uri 'self'",
